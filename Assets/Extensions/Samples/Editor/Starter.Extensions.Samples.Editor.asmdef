@@ -1,0 +1,7 @@
+{
+  "name": "Starter.Extensions.Samples.Editor",
+  "rootNamespace": "Starter.Extensions.Samples.Editor",
+  "references": ["Unity.ugui", "Starter.Extensions.UI", "Starter.Extensions.Tutorial", "Starter.Extensions.Spine", "Starter.Extensions.Effects", "Starter.Extensions.Samples", "spine-csharp", "spine-unity"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}

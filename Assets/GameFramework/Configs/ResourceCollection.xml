@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<UnityGameFramework>
+  <ResourceCollection>
+    <Resources>
+      <Resource Name="demo/config" LoadType="0" Packed="True" />
+      <Resource Name="demo/scenes/menu" LoadType="0" Packed="True" />
+      <Resource Name="demo/scenes/play" LoadType="0" Packed="True" />
+      <Resource Name="demo/ui" LoadType="0" Packed="True" />
+    </Resources>
+    <Assets>
+      <Asset Guid="3cfb605e07d458d4d9bfbf1b6f7af02b" ResourceName="demo/ui" />
+      <Asset Guid="9ca97e39d6a9ea74f83044e8b2013bb7" ResourceName="demo/config" />
+      <Asset Guid="b34d280ea89863a4488596c7192a312b" ResourceName="demo/scenes/play" />
+      <Asset Guid="d6450f4a97a4598419770ab9e4a8f8ec" ResourceName="demo/ui" />
+      <Asset Guid="f4aece7a24fab1f4dabf7ed76119c2db" ResourceName="demo/scenes/menu" />
+    </Assets>
+  </ResourceCollection>
+</UnityGameFramework>

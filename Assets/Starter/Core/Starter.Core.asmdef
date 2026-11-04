@@ -1,0 +1,7 @@
+{
+  "name": "Starter.Core",
+  "rootNamespace": "Starter.Core",
+  "references": ["GameFramework"],
+  "autoReferenced": true,
+  "noEngineReferences": true
+}

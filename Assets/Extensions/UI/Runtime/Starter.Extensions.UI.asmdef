@@ -1,0 +1,6 @@
+{
+  "name": "Starter.Extensions.UI",
+  "rootNamespace": "Starter.Extensions.UI",
+  "references": ["Unity.ugui"],
+  "autoReferenced": true
+}

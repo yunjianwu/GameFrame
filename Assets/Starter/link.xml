@@ -1,0 +1,6 @@
+<linker>
+  <assembly fullname="GameFramework" preserve="all" />
+  <assembly fullname="UnityGameFramework.Runtime" preserve="all" />
+  <assembly fullname="Starter.Game" preserve="all" />
+  <assembly fullname="Starter.Runtime" preserve="all" />
+</linker>

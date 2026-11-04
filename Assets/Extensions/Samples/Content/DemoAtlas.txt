@@ -1,0 +1,12 @@
+White.png
+size: 2,2
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+white
+  rotate: false
+  xy: 0,0
+  size: 2,2
+  orig: 2,2
+  offset: 0,0
+  index: -1

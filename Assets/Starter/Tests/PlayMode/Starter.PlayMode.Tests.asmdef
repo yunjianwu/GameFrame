@@ -1,0 +1,7 @@
+{
+  "name": "Starter.PlayMode.Tests",
+  "rootNamespace": "Starter.Tests",
+  "references": ["GameFramework", "UnityGameFramework.Runtime", "Starter.Core", "Starter.Runtime", "Starter.Game", "Unity.ugui", "Starter.Extensions.UI", "Starter.Extensions.Tutorial", "Starter.Extensions.Spine", "Starter.Extensions.Effects", "spine-csharp", "spine-unity"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

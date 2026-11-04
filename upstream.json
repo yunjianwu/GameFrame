@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "pairedTag": "v2021.05.31",
+  "gameFramework": {
+    "repository": "https://github.com/EllanJiang/GameFramework",
+    "commit": "b2c3ba9a45fe4ea6a38165c0af807bc148bb8b32",
+    "archiveSha256": "E492322850AD91580CAEDF05F222E5922CE4CAB09D34297D1D25F669D1C6E529",
+    "path": "Assets/Framework/GameFramework",
+    "license": "MIT"
+  },
+  "unityGameFramework": {
+    "repository": "https://github.com/EllanJiang/UnityGameFramework",
+    "commit": "2f08fc081ea29c6578a815693b969b061be020e3",
+    "archiveSha256": "87BD8B2C5ECEC72775C1B86E3C71205238AE9A42B3323E4DE3559F177C099ED6",
+    "path": "Assets/Framework/UnityGameFramework",
+    "license": "MIT"
+  },
+  "modifiedUpstreamFiles": [
+    "Assets/Framework/UnityGameFramework/Scripts/Runtime/UnityGameFramework.Runtime.asmdef",
+    "Assets/Framework/UnityGameFramework/Scripts/Editor/UnityGameFramework.Editor.asmdef",
+    "Assets/Framework/UnityGameFramework/Scripts/Runtime/Utility/DefaultCompressionHelper.cs",
+    "Assets/Framework/UnityGameFramework/Scripts/Runtime/Procedure/ProcedureComponent.cs"
+  ],
+  "notes": "See THIRD_PARTY_NOTICES.md. Upstream MIT licenses are retained. Core GF and compression binaries are replaced by source and .NET GZipStream."
+}

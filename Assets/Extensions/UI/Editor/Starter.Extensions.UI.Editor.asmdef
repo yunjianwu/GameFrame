@@ -1,0 +1,7 @@
+{
+  "name": "Starter.Extensions.UI.Editor",
+  "rootNamespace": "Starter.Extensions.UI.Editor",
+  "references": ["Starter.Extensions.UI", "Unity.ugui", "Unity.ugui.Editor"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}

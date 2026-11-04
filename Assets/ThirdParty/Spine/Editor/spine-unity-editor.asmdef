@@ -1,0 +1,15 @@
+{
+  "name": "spine-unity-editor",
+  "references": [
+    "spine-csharp",
+    "spine-unity",
+    "Unity.ugui",
+    "Unity.ugui.Editor"
+  ],
+  "optionalUnityReferences": [],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false
+}

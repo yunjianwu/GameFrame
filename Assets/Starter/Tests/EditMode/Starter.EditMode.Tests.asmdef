@@ -1,0 +1,8 @@
+{
+  "name": "Starter.EditMode.Tests",
+  "rootNamespace": "Starter.Tests",
+  "references": ["GameFramework", "UnityGameFramework.Runtime", "Starter.Core", "Starter.Runtime", "Starter.Extensions.UI", "Unity.ugui"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

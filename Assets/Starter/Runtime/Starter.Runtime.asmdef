@@ -1,0 +1,6 @@
+{
+  "name": "Starter.Runtime",
+  "rootNamespace": "Starter.Runtime",
+  "references": ["GameFramework", "UnityGameFramework.Runtime", "Starter.Core", "Unity.ugui"],
+  "autoReferenced": true
+}

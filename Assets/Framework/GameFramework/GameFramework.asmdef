@@ -1,0 +1,8 @@
+{
+  "name": "GameFramework",
+  "rootNamespace": "GameFramework",
+  "references": [],
+  "allowUnsafeCode": true,
+  "autoReferenced": true,
+  "noEngineReferences": true
+}

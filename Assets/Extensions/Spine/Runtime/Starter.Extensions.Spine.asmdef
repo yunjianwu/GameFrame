@@ -1,0 +1,6 @@
+{
+  "name": "Starter.Extensions.Spine",
+  "rootNamespace": "Starter.Extensions.Spine",
+  "references": ["spine-csharp", "spine-unity", "Unity.ugui"],
+  "autoReferenced": true
+}

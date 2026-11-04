@@ -1,0 +1,10 @@
+{
+  "skeleton": {"hash":"starter-generated","spine":"4.1.00","width":340,"height":210},
+  "bones": [{"name":"root"}],
+  "slots": [{"name":"card","bone":"root","attachment":"white","color":"cde585ff"},{"name":"label","bone":"root"}],
+  "skins": [{"name":"default","attachments":{"card":{"white":{"width":340,"height":210}}}}],
+  "animations": {
+    "show": {"bones":{"root":{"translate":[{"y":-45},{"time":0.45,"y":0}],"scale":[{"x":0.8,"y":0.8},{"time":0.45,"x":1,"y":1}]}},"slots":{"label":{"alpha":[{"value":0},{"time":0.45,"value":1}]}}},
+    "idle": {"bones":{"root":{"rotate":[{"value":-4},{"time":1,"value":4},{"time":2,"value":-4}]}},"slots":{"label":{"alpha":[{"value":1},{"time":1,"value":0.35},{"time":2,"value":1}]}}}
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Starter.Extensions.Samples",
+  "rootNamespace": "Starter.Extensions.Samples",
+  "references": ["Unity.ugui", "Starter.Extensions.UI", "Starter.Extensions.Tutorial", "Starter.Extensions.Spine", "Starter.Extensions.Effects", "spine-csharp", "spine-unity"],
+  "autoReferenced": true
+}

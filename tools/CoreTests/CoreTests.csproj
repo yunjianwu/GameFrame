@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <NoWarn>SYSLIB0021;SYSLIB0045;SYSLIB0051;CS0672</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/Framework/GameFramework/**/*.cs" />
+    <Compile Include="../../Assets/Framework/UnityGameFramework/Scripts/Runtime/Utility/DefaultCompressionHelper.cs" />
+    <Compile Include="../../Assets/Starter/Core/**/*.cs" />
+    <Compile Include="../../Assets/Starter/Runtime/Startup/ResourceUpdateCoordinator.cs" />
+    <Compile Include="../../Assets/Starter/Runtime/Startup/VersionManifest.cs" />
+    <Compile Include="../../Assets/Starter/Tests/EditMode/CoreRegressionSuite.cs" />
+    <Compile Include="../../Assets/Starter/Tests/EditMode/StartupResourceRegressionSuite.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+</Project>
