@@ -3,7 +3,7 @@ param(
     [ValidateSet('All', 'Validate', 'EditMode', 'PlayMode')]
     [string]$Mode = 'All',
     [string]$TestFilter = 'Starter.Tests',
-    [string]$OutputRoot = 'E:\AI\_DownLoads\unity-gf-starter\build\verification',
+    [string]$OutputRoot = 'E:\AI\_DownLoads\unity-gf-demos\build\verification',
     [int]$TimeoutSeconds = 600
 )
 

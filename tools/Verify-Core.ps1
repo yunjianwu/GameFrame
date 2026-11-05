@@ -1,4 +1,4 @@
-param([string]$OutputRoot = 'E:\AI\_DownLoads\unity-gf-starter\build\core')
+param([string]$OutputRoot = 'E:\AI\_DownLoads\unity-gf-demos\build\core')
 $ErrorActionPreference = 'Stop'
 $projectPath = Join-Path $PSScriptRoot 'CoreTests\CoreTests.csproj'
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null

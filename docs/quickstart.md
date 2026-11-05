@@ -2,7 +2,7 @@
 
 ## 打开并运行
 
-工程根目录是包含 `Assets`、`Packages`、`ProjectSettings` 的 `D:\workspace\UnityGFStarter`。用 Unity 2022.3 LTS 打开，建议先使用此次实际验证的安装路径：
+工程根目录是包含 `Assets`、`Packages`、`ProjectSettings` 的 `D:\WorkSpace\UnityGFDemos`。用 Unity 2022.3 LTS 打开，建议先使用此次实际验证的安装路径：
 
 ```text
 C:\Program Files\Unity\Hub\Editor\2022.3.62f2\Editor\Unity.exe
@@ -10,9 +10,9 @@ C:\Program Files\Unity\Hub\Editor\2022.3.62f2\Editor\Unity.exe
 
 该安装包运行时报告 `2022.3.62f2c1`，Unity 导入后也将这个实际版本写入了 `ProjectVersion.txt`。Hub 安装目录名称是 `2022.3.62f2`。不要直接用 Unity 6 升级后回写唯一副本；先在新目录验证编辑器迁移。
 
-打开 `Assets/Game/Scenes/Boot.unity`，Play 后先出现菜单。点击进入示例，点击加金币，再返回和重开。`SAVE LOCALLY` 会写入本地设置；暂停和退出也会保存。GF Setting 默认使用 PlayerPrefs，这适合小规模设置和演示存档；正式游戏的大存档应单独设计版本、校验、原子写入和恢复策略。
+打开 `Assets/Game/Scenes/Boot.unity`，Play 后进入三 Demo 选择页。选择 Boids、Flow Field 或 QuadTree，顶部 `< HUB` 返回、`RESET` 重载、`Esc` 返回。各 Demo 的详细操作见 [算法示例说明](algorithm-demos.md)。右上角 `FRAMEWORK SAMPLE` 保留金币示例；其中 `SAVE LOCALLY` 会写入本地设置，暂停和退出也会保存。GF Setting 默认使用 PlayerPrefs，这适合小规模设置和演示存档；正式游戏的大存档应单独设计版本、校验、原子写入和恢复策略。
 
-示例 UI 使用内置 `LegacyRuntime.ttf` 和英文文本，避免首次运行依赖外部字体。项目说明与关键代码备注使用中文。正式中文界面请引入有授权的中文字库，并评估 TextMeshPro、字体图集与小游戏包体。
+GF 菜单/导航使用内置 `LegacyRuntime.ttf` 和英文文本，三个原 Demo 的 IMGUI 面板尝试使用系统中文字库，不携带系统字体文件。跨机器或移动端发布应引入有授权的中文字库，并评估 TextMeshPro、字体图集与小游戏包体。
 
 ## 最先修改的位置
 
@@ -20,7 +20,7 @@ C:\Program Files\Unity\Hub\Editor\2022.3.62f2\Editor\Unity.exe
 2. `Assets/Game/Runtime/GameSession.cs`：组合自己的业务服务。
 3. `Assets/Game/Runtime/Procedures`：替换 Menu / Play，沿用 Launch → CheckVersion → UpdateResource → Preload → EnterGame → ChangeScene。详细位置见 `procedures.md`。
 4. `Assets/Game/Content/UI` 与 `Assets/Game/Runtime/UI`：替换界面预设和脚本，保留开关订阅规则。
-5. Player Settings：修改公司名、产品名、包名、屏幕方向和图标。默认包名是 `com.yourstudio.gf.starter`，不能拿它作为正式发行标识。
+5. Player Settings：修改公司名、产品名、包名、屏幕方向和图标。默认包名是 `com.yourstudio.gf.demos`，不能拿它作为正式发行标识。
 
 示例金币键为 `starter.demo.coins.v1`。开发时需要新存档可更换这个键；不要清空其他项目的 PlayerPrefs 来重置演示数据。`Core/Wallet.cs` 也是示例模型，可以移入自己的业务模块。
 
@@ -36,6 +36,11 @@ Boot 场景中 GF 的 Base 组件启用 Editor Resource Mode，编辑器可直�
 | `demo/ui` | MenuForm.prefab、PlayForm.prefab |
 | `demo/scenes/menu` | Menu.unity 业务场景 |
 | `demo/scenes/play` | Play.unity 业务场景 |
+| `algorithms/scenes/boids` | Boids.unity |
+| `algorithms/scenes/flow-field` | FlowField.unity |
+| `algorithms/scenes/quadtree` | QuadTree.unity |
+
+`DemoNavigationForm.prefab` 同样归入 `demo/ui`。
 
 资源路径集中在 `Assets/Game/Runtime/AssetNames.cs`。新增界面要同时维护路径常量、UI 预设和资源分包。只改常量但没把资源纳入分包，会出现编辑器成功、Player 找不到资源的问题。
 
@@ -44,13 +49,16 @@ Boot 场景中 GF 的 Base 组件启用 Editor Resource Mode，编辑器可直�
 资源输出结构类似：
 
 ```text
-E:/AI/_DownLoads/unity-gf-starter/build/packages/<run>/resources/
+E:/AI/_DownLoads/unity-gf-demos/build/packages/<run>/resources/
   Package/0_1_0_1/Windows64/
     GameFrameworkVersion.dat
     demo/config.dat
     demo/ui.dat
     demo/scenes/menu.dat
     demo/scenes/play.dat
+    algorithms/scenes/boids.dat
+    algorithms/scenes/flow-field.dat
+    algorithms/scenes/quadtree.dat
   Working/
   BuildReport/
 ```
@@ -61,16 +69,16 @@ E:/AI/_DownLoads/unity-gf-starter/build/packages/<run>/resources/
 
 在 Build Settings 选择 PC, Mac & Linux Standalone → Windows → x86_64，然后用 `Starter/4. Build Windows Demo Player`。
 
-该入口先构建 Package，再通过 Unity 的 `BuildPlayerProcessor` 把外部资源放入 Player 的 StreamingAssets 根目录。这样不用在工程 Assets 下创建资源构建产物。默认输出位于上述 `<run>/player/UnityGFStarter.exe`。
+该入口先构建 Package，再通过 Unity 的 `BuildPlayerProcessor` 把外部资源放入 Player 的 StreamingAssets 根目录。这样不用在工程 Assets 下创建资源构建产物。默认输出位于上述 `<run>/player/UnityGFDemos.exe`。
 
 也可通过命令行调用同一个入口，日志请指定到外部目录。示例中的目录须事先存在：
 
 ```powershell
 $unity = 'C:\Program Files\Unity\Hub\Editor\2022.3.62f2\Editor\Unity.exe'
 & $unity -batchmode -nographics -quit -buildTarget Win64 `
-    -projectPath 'D:\workspace\UnityGFStarter' `
+    -projectPath 'D:\WorkSpace\UnityGFDemos' `
     -executeMethod Starter.Editor.StarterBuildTools.BuildWindowsPlayer `
-    -logFile 'E:\AI\_DownLoads\unity-gf-starter\build\logs\manual-player-build.log'
+    -logFile 'E:\AI\_DownLoads\unity-gf-demos\build\logs\manual-player-build.log'
 ```
 
 构建日志中的 `STARTER_PLAYER_BUILT:` 后面是实际 exe 路径。开发包可传 `-starterSmokeTest` 检查真实 Package 加载、启动与金币事件，检查完成后会自动退出。普通启动不会运行自检；非 Development Build 不编译这段代码。

@@ -15,7 +15,7 @@ namespace Starter.Editor
     /// <summary>每次使用新输出目录；资源在构建时加入 StreamingAssets，不把编译产物放进 Assets。</summary>
     public static class StarterBuildTools
     {
-        public const string DefaultOutputRoot = @"E:\AI\_DownLoads\unity-gf-starter\build\packages";
+        public const string DefaultOutputRoot = @"E:\AI\_DownLoads\unity-gf-demos\build\packages";
         internal static string StreamingAssetsForBuild { get; private set; }
 
         [MenuItem("Starter/3. Build Package for Active Target")]
@@ -33,12 +33,13 @@ namespace Starter.Editor
                 throw new InvalidOperationException("Switch Build Settings to Windows x86_64 first, or use -buildTarget Win64 in batch mode.");
             StarterProjectBuilder.ValidateDemo();
             ExtensionsSampleBuilder.ValidateExtensions();
+            AlgorithmDemoProjectBuilder.Validate();
             if (Directory.Exists("Assets/StreamingAssets"))
                 throw new InvalidOperationException("This demo build expects no project StreamingAssets folder. Review the additional asset paths before combining them.");
 
             string run = CreateRunDirectory();
             string package = BuildPackage(BuildTarget.StandaloneWindows64, run);
-            string player = Path.Combine(run, "player", "UnityGFStarter.exe");
+            string player = Path.Combine(run, "player", "UnityGFDemos.exe");
             Directory.CreateDirectory(Path.GetDirectoryName(player));
             try
             {
@@ -107,7 +108,7 @@ namespace Starter.Editor
             string package = Path.Combine(builder.OutputPackagePath, platform.ToString());
             if (!builder.BuildResources() || !completed || !File.Exists(Path.Combine(package, "GameFrameworkVersion.dat")))
                 throw new InvalidOperationException("Package build failed. Inspect the GF build report under " + resources);
-            foreach (string name in new[] { "demo/config.dat", "demo/ui.dat", "demo/scenes/menu.dat", "demo/scenes/play.dat" })
+            foreach (string name in new[] { "demo/config.dat", "demo/ui.dat", "demo/scenes/menu.dat", "demo/scenes/play.dat", "algorithms/scenes/boids.dat", "algorithms/scenes/flow-field.dat", "algorithms/scenes/quadtree.dat" })
                 if (!File.Exists(Path.Combine(package, name))) throw new IOException("Missing package resource: " + name);
             return package;
         }

@@ -21,10 +21,11 @@ namespace Starter.Game.Procedures
             NavigateRequested = false;
             _events = new EventScope(GameFrameworkEntry.GetModule<IEventManager>());
             _events.Subscribe(OpenUIFormFailureEventArgs.EventId, OnOpenFailed);
-            _serialId = GameServices.UI.OpenUIForm(UiAsset, AssetNames.DefaultUIGroup, (object)new System.Action(RequestNavigation));
+            _serialId = GameServices.UI.OpenUIForm(UiAsset, AssetNames.DefaultUIGroup, CreateUserData());
         }
 
-        private void RequestNavigation() { NavigateRequested = true; }
+        protected virtual object CreateUserData() => new System.Action(RequestNavigation);
+        protected void RequestNavigation() { NavigateRequested = true; }
 
         private void OnOpenFailed(object sender, GameEventArgs args)
         {

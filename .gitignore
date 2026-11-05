@@ -15,3 +15,6 @@
 *.unityproj
 *.log
 !tools/**/*.csproj
+/Assets/LocalVerification/
+/Assets/LocalVerification.meta
+/.local-verification/

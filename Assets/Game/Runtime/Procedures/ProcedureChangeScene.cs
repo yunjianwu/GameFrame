@@ -9,12 +9,13 @@ using ProcedureOwner = GameFramework.Fsm.IFsm<GameFramework.Procedure.IProcedure
 
 namespace Starter.Game.Procedures
 {
-    public enum SceneDestination { Menu, Play }
+    public enum SceneDestination { Menu, Play, AlgorithmDemo }
 
     public sealed class ProcedureChangeScene : ProcedureBase
     {
         private const string SceneKey = "Starter.NextScene";
         private const string DestinationKey = "Starter.NextProcedure";
+        private const string ReloadKey = "Starter.ReloadScene";
         private readonly HashSet<string> _pendingUnloads = new HashSet<string>(StringComparer.Ordinal);
         private EventScope _events;
         private object _request;
@@ -24,13 +25,14 @@ namespace Starter.Game.Procedures
         private bool _ready;
         private float _elapsed;
 
-        public static void Request(ProcedureOwner owner, string sceneAsset, SceneDestination destination)
+        public static void Request(ProcedureOwner owner, string sceneAsset, SceneDestination destination, bool reload = false)
         {
             if (string.IsNullOrEmpty(sceneAsset) || !sceneAsset.StartsWith("Assets/", StringComparison.Ordinal) ||
                 !sceneAsset.EndsWith(".unity", StringComparison.Ordinal)) throw new ArgumentException("Use a full Unity scene asset path.", nameof(sceneAsset));
             if (!Enum.IsDefined(typeof(SceneDestination), destination)) throw new ArgumentOutOfRangeException(nameof(destination));
             owner.SetData<VarString>(SceneKey, sceneAsset);
             owner.SetData<VarInt32>(DestinationKey, (int)destination);
+            owner.SetData<VarInt32>(ReloadKey, reload ? 1 : 0);
         }
 
         protected override void OnEnter(ProcedureOwner owner)
@@ -45,11 +47,14 @@ namespace Starter.Game.Procedures
             {
                 var scene = owner.GetData<VarString>(SceneKey);
                 var destination = owner.GetData<VarInt32>(DestinationKey);
+                var reload = owner.GetData<VarInt32>(ReloadKey);
+                bool reloadScene = reload != null && reload.Value != 0;
                 if (scene == null || destination == null) throw new InvalidOperationException("Request a destination before entering ProcedureChangeScene.");
                 _target = scene.Value;
                 _destination = (SceneDestination)destination.Value;
                 owner.RemoveData(SceneKey);
                 owner.RemoveData(DestinationKey);
+                owner.RemoveData(ReloadKey);
                 if (!Enum.IsDefined(typeof(SceneDestination), _destination)) throw new InvalidOperationException("Unknown destination procedure.");
                 if (!GameServices.Scene.HasScene(_target)) throw new InvalidOperationException("Scene is not available in the ready resource set: " + _target);
                 if (GameServices.Scene.GetLoadingSceneAssetNames().Length != 0 || GameServices.Scene.GetUnloadingSceneAssetNames().Length != 0)
@@ -63,7 +68,7 @@ namespace Starter.Game.Procedures
                 ClearTransientObjects();
                 // Boot is loaded by Unity, not GF Scene, so it is never in this owned business-scene list.
                 foreach (string loaded in GameServices.Scene.GetLoadedSceneAssetNames())
-                    if (loaded != _target) _pendingUnloads.Add(loaded);
+                    if (reloadScene || loaded != _target) _pendingUnloads.Add(loaded);
                 foreach (string loaded in _pendingUnloads) GameServices.Scene.UnloadScene(loaded, _request);
             }
             catch (Exception exception) { Fail(exception.Message); }
@@ -88,6 +93,7 @@ namespace Starter.Game.Procedures
             }
             if (!_ready) return;
             if (_destination == SceneDestination.Menu) ChangeState<ProcedureMenu>(owner);
+            else if (_destination == SceneDestination.AlgorithmDemo) ChangeState<ProcedureAlgorithmDemo>(owner);
             else ChangeState<ProcedurePlay>(owner);
         }
 

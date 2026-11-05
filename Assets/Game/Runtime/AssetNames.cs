@@ -8,6 +8,7 @@ namespace Starter.Game
         public const string Config = "Assets/Game/Content/Config/GameConfig.json";
         public const string Menu = "Assets/Game/Content/UI/MenuForm.prefab";
         public const string Play = "Assets/Game/Content/UI/PlayForm.prefab";
+        public const string DemoNavigation = "Assets/Game/Content/UI/DemoNavigationForm.prefab";
         public const string DefaultUIGroup = "Default";
     }
 }

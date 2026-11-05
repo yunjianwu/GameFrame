@@ -1,5 +1,15 @@
 # 第三方来源与修改说明
 
+## 三个文章算法 Demo
+
+- 本地来源：`D:\WorkSpace\wechat-article-demos\demos-unity`。
+- 子项目：`boids-flocking`、`flow-field-pathfinding`、`quadtree-boids`。
+- 本工程目录：`Assets/AlgorithmDemos/Runtime`；原 README 保留在 `docs/source-demos`，包含对应文章和演示背景。
+- 导入了 24 个算法、演示与 Common 脚本，未导入三个自动启动的 Bootstrap。场景、菜单和 GF 接入代码在本工程单独创建。
+- 修改包括场景相机、限定绘制相机、导航输入拦截、系统动态字体选择，以及四叉树重合点的深度保护。对应关系与原因见 `docs/algorithm-demos.md`。
+
+本地 Demo 来源中未发现独立许可证文件，因此不将其声明为 MIT。对外公开或再分发前应按来源仓库的实际授权处理；GF 的 MIT 不会自动覆盖这些示例、原项目扩展或 Spine。
+
 ## Game Framework
 
 - 上游：https://github.com/EllanJiang/GameFramework

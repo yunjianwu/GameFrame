@@ -17,4 +17,13 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Game/Scenes/Play.unity
     guid: b34d280ea89863a4488596c7192a312b
+  - enabled: 1
+    path: Assets/AlgorithmDemos/Scenes/Boids.unity
+    guid: 4a5283393ca2edb42a3baa3913ee60e0
+  - enabled: 1
+    path: Assets/AlgorithmDemos/Scenes/FlowField.unity
+    guid: 3a979f66f6a081b46a677440c72674d7
+  - enabled: 1
+    path: Assets/AlgorithmDemos/Scenes/QuadTree.unity
+    guid: 49d1d63a7dd68e14e8f8a1e86b2fa19f
   m_configObjects: {}

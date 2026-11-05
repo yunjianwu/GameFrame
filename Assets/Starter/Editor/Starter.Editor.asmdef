@@ -1,7 +1,7 @@
 {
   "name": "Starter.Editor",
   "rootNamespace": "Starter.Editor",
-  "references": ["GameFramework", "UnityGameFramework.Runtime", "UnityGameFramework.Editor", "Starter.Core", "Starter.Runtime", "Starter.Game", "Unity.ugui", "Starter.Extensions.Samples.Editor"],
+  "references": ["GameFramework", "UnityGameFramework.Runtime", "UnityGameFramework.Editor", "Starter.Core", "Starter.Runtime", "Starter.Game", "Unity.ugui", "Starter.Extensions.Samples.Editor", "AlgorithmDemos.Runtime"],
   "includePlatforms": ["Editor"],
   "autoReferenced": true
 }
