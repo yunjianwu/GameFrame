@@ -1,0 +1,7 @@
+{
+  "tags": {
+    "State.CrowdControl.Stunned": {
+      "description": "示例状态标签；是否禁止施法由具体技能规则决定。"
+    }
+  }
+}

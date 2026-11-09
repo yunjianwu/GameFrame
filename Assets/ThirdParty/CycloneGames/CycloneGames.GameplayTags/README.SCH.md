@@ -1,0 +1,539 @@
+# CycloneGames.GameplayTags
+
+[English | 简体中文](README.md)
+
+CycloneGames.GameplayTags 提供分层标签（`State.CrowdControl.Stunned`）、自动父标签解析的标签容器和编译后的标签查询。标签是共享词汇：技能、效果、AI 和 UI 可以引用同一套定义而不引入硬引用。
+
+## 目录
+
+- [概述](#概述)
+- [架构](#架构)
+- [日志](#日志)
+- [快速上手](#快速上手)
+- [核心概念](#核心概念)
+- [使用指南](#使用指南)
+- [进阶主题](#进阶主题)
+- [常见场景](#常见场景)
+- [性能与内存](#性能与内存)
+- [序列化与 Inspector](#序列化与-inspector)
+- [故障排查](#故障排查)
+
+## 概述
+
+玩法标签是一个带有点分层次名称的紧凑标签，如 `State.CrowdControl.Stunned`。注册表校验名称、解析父标签并发布不可变快照。容器追踪显式标签并计算派生父成员关系。查询通过预编译布尔表达式评估容器状态。
+
+适用场景：
+
+- 多个系统（技能、效果、AI、UI）需要共享标签词汇表。
+- 标签形成层级结构，例如 `State.CrowdControl` 包含 `State.CrowdControl.Stunned`。
+- 热路径上需要零分配查找和容器比较。
+
+### 主要特性
+
+- **分层标签注册表**，支持原子快照发布与无锁读取。
+- **GameplayTagContainer** 提供显式成员关系与自动父标签解析。
+- **GameplayTagCountContainer** 提供稀疏叠加计数与同步变更通知。
+- **GameplayTagQuery** 提供编译后的 `All`/`Any`/`None` 谓词匹配，值栈为单个 `ulong` 位掩码，零分配。
+- **多种定义来源**：项目 JSON、程序集属性、静态目录、动态注册和 DataTable 适配器。
+- **纯 C# Core 程序集**，`noEngineReferences: true`；编辑器工具位于独立程序集。
+
+## 架构
+
+| 程序集 | 职责 | 直接依赖 |
+| --- | --- | --- |
+| `CycloneGames.GameplayTags.Core` | 注册表、值、容器、计数、查询、Player catalog contract 与本地 diagnostics port | `CycloneGames.Hash.Core`；`noEngineReferences` |
+| `CycloneGames.GameplayTags.Integrations.Logging` | 从 Core diagnostics 到共享 writer 的可选 bridge | Core、Logging；`noEngineReferences`；`autoReferenced: false` |
+| `CycloneGames.GameplayTags.Unity.Runtime` | Runtime bootstrap、`Resources` build data loading、`GameObject` component adapter | Core、Logging integration |
+| `CycloneGames.GameplayTags.Unity.Editor` | JSON authoring、manager window、drawer、validation、file watcher、build bake | Core、Unity Runtime、Logging、Newtonsoft.Json；仅 Editor |
+
+```mermaid
+flowchart LR
+    A["Compiled catalogs"] --> C["Registration context"]
+    B["Project JSON and adapters"] --> C
+    D["Player build binary"] --> C
+    E["显式 dynamic registration"] --> C
+    C --> V["校验名称、预算、碰撞与 hierarchy"]
+    V --> S["发布不可变 TagDataSnapshot"]
+    S --> R["无 writer lock 的 registry read"]
+    S --> O["Owner-thread containers"]
+    O --> I["不可变 container snapshots"]
+```
+
+Writer 在发布前构建完整 candidate。非法输入、stable-ID collision 或预算失败不会修改当前 snapshot。Tree-change notification 在发布后于 registry writer lock 之外同步执行。
+
+## 日志
+
+Core 自己持有引擎无关的 `IGameplayTagsDiagnostics`、`NullGameplayTagsDiagnostics`、`GameplayTagsDiagnosticCategories.Root` 和 `GameplayTagsDiagnostics` 进程替换点，不引用 `ILogWriter`、`LogChannel`、Unity 或具体 backend。`GameplayTagsDiagnosticLevel` 采用稳定的共享形状：`Trace`、`Debug`、`Info`、`Warning`、`Error`、`Fatal`、`None`，数值与 `LogSeverity` 一致；`None` 和未知值永远不会输出。`GameplayTagsLogWriterAdapter` 是接入共享进程 writer 的可选 adapter；它会隔离普通 writer 异常，同时有意保留 `OutOfMemoryException` 的传播行为。
+
+这是 assembly 边界，而不是已经拆分完成的 UPM 分发边界。当前组合式 `com.cyclone-games.gameplay-tags` package root 还包含非 Core assembly，因此仍声明 `com.cyclone-games.logging`；若要只安装 Core 且完全不产生该 package dependency，仍需后续进行物理 Core package 拆分。
+
+每个 Core 调用都会经过内部 `GameplayTagsCoreDiagnostics` best-effort guard。普通自定义 sink 异常不能改变 registry publication、tag lookup、已提交的 count 状态或 subscriber 迭代。纯 C# host 可以让 Core 保持静默、安装自己的 `IGameplayTagsDiagnostics`，或显式引用 Logging integration。owner 使用 `GameplayTagsDiagnostics.TryReplace(expected, replacement)` 完成原子 handoff，或使用 `TryReset(expected)` 只释放自己安装的 sink。Unity bootstrap 会跟踪 ambient ownership，绝不会 reset 或替换用户安装的 sink，也不会修改 `LogRuntime.Writer`。
+
+Editor 自己的输出继续使用 assembly-local `GameplayTagsEditorLog` facade，并保持统一的 `Category`、ambient `Channel` 与 `Create(ILogWriter)` 形状。`IGameplayTagHostPlatform`（通过 `GameplayTagHost.Use` 安装）只保留 play-state 检测、build data、settings path 与 project tag source 等 host-platform 能力。
+
+## 快速上手
+
+在 asmdef 中添加对 `CycloneGames.GameplayTags.Core` 的引用，然后：
+
+```csharp
+using CycloneGames.GameplayTags.Core;
+
+GameplayTagManager.InitializeIfNeeded();
+
+GameplayTag stunned = GameplayTagManager.Request("State.CrowdControl.Stunned");
+GameplayTag crowdControl = GameplayTagManager.Request("State.CrowdControl");
+
+GameplayTagContainer state = new();
+state.AddTag(stunned);
+
+bool exact = state.HasTagExact(stunned);     // true
+bool inherited = state.HasTag(crowdControl); // true
+```
+
+可选内容使用 `TryRequest`，并缓存结果：
+
+```csharp
+if (GameplayTagManager.TryRequest("Feature.Seasonal.Active", out GameplayTag seasonal))
+{
+    // 缓存 seasonal，不要在每帧通过字符串请求标签。
+}
+```
+
+`GameplayTag.None` 保留 runtime index 0，不能作为有效容器成员。
+
+## 核心概念
+
+### 关键类型
+
+| 类型 | 职责 | Owner 与生命周期 |
+| --- | --- | --- |
+| `GameplayTag` | 以分层名称标识的可序列化值 | 可复制值；名称是稳定 identity |
+| `GameplayTagManager` | 进程级注册表 Facade 与原子 snapshot 发布 | 应用或 subsystem 生命周期 |
+| `TagDataSnapshot` | 含 hierarchy 与 lookup table 的不可变注册表 generation | 由 manager 发布，reader 捕获引用 |
+| `IReadOnlyGameplayTagContainer` | 只读容器 capability | 从具体 owner 借用 |
+| `IGameplayTagContainer` | 在只读能力之外提供 mutation capability | 唯一明确的 mutable owner |
+| `GameplayTagContainer` | 显式成员以及由其派生的父标签成员 | owning system 或序列化对象 |
+| `GameplayTagCountContainer` | 稀疏的显式/聚合层级计数与通知 | 单一逻辑 runtime owner |
+| `ReadOnlyGameplayTagContainer` | 绑定到一个 registry epoch 的不可变容器副本 | 创建者持有 snapshot 引用 |
+| `GameplayTagQuery` | 编译后的 `All` / `Any` / `None` predicate | owner 控制构造与 cache invalidation |
+
+方法仅检查标签时，应接受 `IReadOnlyGameplayTagContainer`。
+
+### 容器与层级
+
+`GameplayTagContainer` 保存有序 explicit set，并从其派生完整 parent set。添加 `State.CrowdControl.Stunned` 会使得精确查询和父标签查询都成功。
+
+```csharp
+void CanUseAbility(
+    IReadOnlyGameplayTagContainer owned,
+    IReadOnlyGameplayTagContainer required)
+{
+    bool allowed = owned.HasAll(required);
+}
+```
+
+空集合语义：`HasAll(empty)` 为 `true`，`HasAny(empty)` 为 `false`。
+
+Unity 序列化使用 `m_SerializedExplicitTags`（名称列表）。Runtime index 从名称重建。存档或传输契约应保存稳定名称或 stable ID，不得保存 raw runtime index。
+
+### 查询
+
+```csharp
+GameplayTagQuery query = new()
+{
+    RootExpression = GameplayTagQueryExpression.All(
+        GameplayTagQueryExpression.MatchAny(attackTags),
+        GameplayTagQueryExpression.MatchNone(blockedStateTags))
+};
+
+bool canActivate = query.Matches(ownedTags);
+```
+
+一个 node 只能包含 tags 或 child expressions，不能同时包含两者。Compilation 会拒绝 cycle，并应用 depth、node 和 referenced-tag budget。Match 在编译深度 ≤64 时把整个值栈放进单个 `ulong` 位掩码（最常见情形），超过时回退到按编译深度精确分配的 span。没有固定栈预算，也没有每次调用的清零开销。修改 expression graph 后必须在下次 match 前调用 `InvalidateCompiledCache()`。
+
+### 计数容器
+
+`GameplayTagCountContainer` 只为 active index 保存计数。添加 leaf 会增加该 leaf 以及每个 parent；重复添加同一 leaf 会重复增加每个受影响计数。
+
+```csharp
+GameplayTagCountContainer counts = new();
+counts.RegisterTagEventCallback(
+    stunned,
+    GameplayTagEventType.NewOrRemoved,
+    static (tag, count) => SetStunned(count > 0));
+
+counts.AddTag(stunned);
+counts.RemoveTag(stunned);
+```
+
+Mutation 语义：
+
+- Batch delta 在提交前完成汇总和验证；overflow 或移除到零以下会失败且不产生部分 mutation。
+- Callback 在 commit 之后于 mutating thread 同步执行；单个 callback 失败不会阻止后续 callback。
+- Callback 内的 mutation reentry 会 fail fast。
+- Callback 注册和移除属于 cold path 操作。
+
+单标签 mutation 使用有界栈缓冲区（最多 32 个层级通知）。多标签 mutation 仅在需要时创建临时存储。
+
+## 使用指南
+
+### 定义标签
+
+**Project JSON** — Editor 从 `ProjectSettings/GameplayTags/` 读取 `*.json` 文件。每个文件只允许一个顶层 property `tags`：
+
+```json
+{
+  "tags": {
+    "Ability.Attack.Primary": {
+      "description": "Primary attack ability"
+    },
+    "State.CrowdControl.Stunned": {
+      "description": "Actor cannot act"
+    },
+    "UI.Internal.Debug": {
+      "flags": 1
+    }
+  }
+}
+```
+
+`description` 与 `flags` 可省略。Flag `1` 即 `GameplayTagFlags.HideInEditor`。Parser 对单一文件 handle 施加 byte budget，只接受不带 BOM 的 UTF-8。写入使用同目录临时文件、flush 和原子替换。
+
+**编译期 catalog** —— 零反射的声明契约。声明一个 catalog，然后在运行时引导和编辑器引导各注册一次，让这些 tag 在两个世界都存在：
+
+```csharp
+public sealed class GameTagsCatalog : IGameplayTagCatalog
+{
+    public string Name => "Game.Tags";
+    public void Collect(GameplayTagCatalogBuilder builder)
+    {
+        builder.Add("Ability.Attack.Primary", "Primary attack ability");
+        builder.Add("State.CrowdControl.Stunned", "Actor cannot act");
+    }
+}
+
+// 运行时：[RuntimeInitializeOnLoadMethod] —— 编辑器：[InitializeOnLoad]
+GameplayTagManager.RegisterCatalog(new GameTagsCatalog());
+```
+
+**Native tag** —— 声明一次，热路径当常量读取，无字符串查找；编辑器中可见且只读：
+
+```csharp
+public static class GameTags
+{
+    public static readonly NativeGameplayTag Stunned = new("State.CrowdControl.Stunned", "Actor cannot act");
+}
+
+// 热路径
+if (actor.Tags.HasTag(GameTags.Stunned.Tag)) { ... }
+```
+
+**动态注册** — 在依赖对象创建前批量注册：
+
+```csharp
+GameplayTagManager.RegisterDynamicTags(new[]
+{
+    "Event.Combat.Hit",
+    "Event.Combat.CriticalHit"
+});
+GameplayTagManager.InitializeIfNeeded();
+```
+
+### 编辑器工作流
+
+- `Tools/CycloneGames/GameplayTags/Gameplay Tag Manager` — 浏览和编辑标签。
+- `Tools/CycloneGames/GameplayTags/Tag Validation Window` — 扫描 Prefab、ScriptableObject 和已打开 Scene。
+- Property drawer 通过 `SerializedObject`/`SerializedProperty` 编辑，保留 Undo、Prefab Override 与多对象语义。
+- Full-project validation 属于 cold operation；大型项目应在专用 Editor 或 CI session 中运行。
+
+### Player Build Data
+
+Player build 前，Editor 会把除 `None` 外的全部定义发布到隔离的 build-only 资产路径：
+
+```text
+Assets/Generated/CycloneGames.GameplayTags/Resources/CycloneGames.GameplayTags/GameplayTags.bytes
+```
+
+Runtime adapter 通过 `Resources.Load<TextAsset>("CycloneGames.GameplayTags/GameplayTags")` 加载该资产。二进制格式如下：
+
+```text
+4 bytes ASCII signature "CGTG"
+int32 definitionCount
+repeat definitionCount: string name, string description, int32 flags
+uint64 contentHash
+```
+
+Runtime 在注册前严格校验 signature、strict UTF-8、size、count、name、flag、duplicate、trailing data 和 content hash。数据缺失或损坏会导致初始化失败，而非静默以空注册表启动。
+
+生成资产由 write-ahead transaction 管理。修改 `Assets` 前，Editor 会把每个计划中的文件和目录 effect、其“不存在”的前状态、预期 SHA-256、大小预算以及生成的 Unity GUID 写入：
+
+```text
+.buildpipeline/transactions/gameplay-tags/active.json
+```
+
+普通 build preprocess 绝不会隐式恢复 pending state。存在 pending journal、journal candidate、scratch 目录或未知状态项时，会在创建新输出前停止构建。Postprocess 在删除任何内容前，会校验所有生成文件，并扫描每个由事务创建的目录是否含有未知内容；任一清理失败都会使构建失败，并保留 journal 与现场证据。
+
+恢复必须显式执行：
+
+```csharp
+BuildTags.Recover(projectRoot);
+```
+
+这个 public static facade 位于 GameplayTags Editor 程序集，不依赖项目的 Build 模块，因此 CI/build orchestrator 可以通过 reflection 调用。恢复只接受固定的 GameplayTags 路径集合，拒绝路径穿越与 reparse point，对读取实施大小预算，校验精确 hash，并且绝不递归删除目录。未知或被修改的文件会被保留，必须人工核对。
+
+持久化契约：
+
+| 状态 | Owner | 版本控制 | 生命周期与安全清理方式 |
+| --- | --- | --- | --- |
+| `.buildpipeline/transactions/gameplay-tags/active.json` | GameplayTags build asset transaction | 排除出 Git | 从 preprocess 持续到 postprocess 成功；只能通过 `BuildTags.Recover` 清理 |
+| `.buildpipeline/transactions/gameplay-tags/active.json.new` | 原子 journal writer | 排除出 Git | 中断后可能残留；显式恢复会先校验并协调它 |
+| `.buildpipeline/transactions/gameplay-tags/scratch/` | Transaction staging | 排除出 Git | 只允许 journal 命名的 staging 文件；显式恢复会拒绝未知项 |
+| `.buildpipeline/transactions/gameplay-tags/build.lock` | 跨进程互斥 | 排除出 Git | 空的、可重建的协调文件；不承载构建事实 |
+
+## 进阶主题
+
+### 注册表发布与 Index Epoch
+
+每个 registry snapshot 暴露：
+
+- `Generation` — 每次成功发布都会改变。
+- `RuntimeIndexEpoch` — 已有 index 可能被重排或移除时改变。
+- `RegistryManifestHash` — 按 canonical tag name 的 ordinal 顺序组合稳定标签 identity。
+- `GameplayTagManager.ManifestHash` — 额外包含 redirect contract。
+
+Runtime index 是 cache-local identifier，不是持久化 identity。Container 会拒绝跨不兼容 epoch 的 index 操作。Play 期间 reload 保留已有 index 并追加新增；authoring 中删除的标签保留到下一次 runtime reset。
+
+Redirect 以 immutable snapshot 发布。`AddRedirects` 在 registry lock 外 materialize 和校验至多 4,096 个输入项，然后在锁内原子合并。
+
+#### 非保留式 Reload 之后的陈旧 Container
+
+`Reload(preserveRuntimeIndices: false)` 会重新分配全部 index。此前建立的 container 仍持有旧编号，
+而这些编号此时已指向别的标签。读路径无法发现这件事——每次读都校验 epoch 会让所有查询付出代价——
+因此校验放在写路径上：作为 `AddTags`、`RemoveTags`、`Copy`、`AddUnion`、`AddIntersection` **来源**的
+container 必须属于当前 epoch，否则在改动目标之前抛出 `ArgumentException`。
+
+名字才是持久化 identity，因此恢复方式是从名字重建：
+
+```csharp
+if (!ownedTags.TryToPersisted(out string[] names))
+{
+    names = durableNamesFromSave;   // container 陈旧时 TryToPersisted 会拒绝
+}
+
+var rebuilt = new GameplayTagContainer(registry);
+rebuilt.LoadPersisted(names);
+```
+
+`SerializableGameplayTagContainer` 保存名字并对当前 snapshot 重新解析，因此跨 reload 无需手工重建。
+
+模块之外实现的 container 通过声明 epoch 加入同一套校验：
+
+```csharp
+public sealed class ReplicatedTagView : IReadOnlyGameplayTagContainer, IGameplayTagEpochProvider
+{
+    // 尚未持有 index 时为 0；持有后为当前 epoch。
+    public int RuntimeIndexEpoch { get; }
+}
+```
+
+未声明 epoch 的 container 无法被校验，其 index 会被原样复制。
+
+### 不可变快照与线程
+
+```csharp
+ReadOnlyGameplayTagContainer snapshot = ownedTags.CreateSnapshot();
+if (snapshot.IsCompatibleWithCurrentRegistry)
+{
+    bool hasStun = snapshot.HasTag(stunned);
+}
+```
+
+线程契约：
+
+- Registry write 串行执行；已发布 snapshot 支持并发 managed read。
+- 创建 container snapshot 时 source 必须处于稳定的 owner-thread access。
+- Mutable container、count container 和 query construction 仍为 owner-thread 操作。
+- Unity object 与 Unity API 保持 Unity main thread affinity。
+- 这些 managed snapshot 不是 Burst job data。
+
+#### Owner-Thread 诊断
+
+可变 container 会记录首次访问它的 managed thread。开启
+`GameplayTagsDiagnostics.ThreadAffinityChecksEnabled` 时，来自其他线程的变更会抛出，而不是静默破坏状态。
+Unity bootstrap 在 Editor 与 Development 构建中开启该校验；做性能采样、或由宿主自行保证归属时关闭：
+
+```csharp
+GameplayTagsDiagnostics.ThreadAffinityChecksEnabled = false;
+```
+
+`Clear()` 会把 container 恢复到首次写入前的状态，包括释放已记录的线程。它本身不做线程校验，因此调用方
+必须保证清空期间没有其他线程在读该 container。对象池必须在把 container 交给其他线程之前清空它：
+
+```csharp
+pooledTags.Clear();
+pool.Return(pooledTags);
+```
+
+### GameplayAbilities 与 GameplayFramework 集成
+
+GameplayAbilities 对不可变 ability/effect definition 使用 read-only container。`GameplayTagCountContainer` 提供叠加的 owned/blocked/state count。GameplayFramework 通过 `ActorGameplayTagExtensions` 以 `GetComponent` 查找 `GameplayObjectGameplayTagContainer`；重复访问时应缓存返回的 container：
+
+```csharp
+if (actor.TryGetGameplayTagContainer(out GameplayTagCountContainer actorTags))
+{
+    actorTags.AddTag(stunned);
+}
+```
+
+## 常见场景
+
+### 技能需求判定
+
+```csharp
+public bool CanActivate(IReadOnlyGameplayTagContainer actorTags)
+{
+    return actorTags.HasAll(ability.RequiredTags) &&
+           !actorTags.HasAny(ability.BlockedTags);
+}
+```
+
+### 状态叠加计数
+
+```csharp
+// 多个来源可以分别添加 "Stunned"。
+// 计数值反映有多少活跃来源施加该状态。
+counts.AddTag(stunned); // count = 1
+counts.AddTag(stunned); // count = 2
+// Tag event 仅在 0↔1 转换时触发。
+```
+
+### 内容过滤查询
+
+```csharp
+GameplayTagQuery playerContentQuery = new()
+{
+    RootExpression = GameplayTagQueryExpression.All(
+        GameplayTagQueryExpression.MatchAny(playerClassTags),
+        GameplayTagQueryExpression.MatchNone(explicitlyBlockedTags))
+};
+```
+
+## 性能与内存
+
+### 预算
+
+| 边界 | 上限 |
+| --- | ---: |
+| Tag name | 255 UTF-16 code units |
+| 层级深度 | 32 segments |
+| 已注册标签 | 65,535（不含 `None`） |
+| 每个 candidate 的 registration attempt | 131,070 |
+| Query depth / nodes / tag references | 32 / 1,024 / 4,096 |
+| Redirect catalog | 4,096 entries |
+| JSON source file / count | 8 MiB / 256 |
+
+#### 规模与成本
+
+成本有两个驱动因素，容易混淆。解析名字与注册表里有多少标签无关；变更容器与注册表无关，但与这个容器持有
+多少标签有关；注册标签则两者都相关。
+
+| 操作 | 成本驱动 | 实践规则 |
+| --- | --- | --- |
+| `Request` / `TryRequest` | 一次字典查找，与注册表规模无关 | 解析一次，把 `GameplayTag` 留着 |
+| 容器 add / remove | 该容器持有的标签数 | 容器保持在数百量级 |
+| `RegisterDynamicTags` | 注册表中的全部标签，因为它要重新发布 | 在加载期批量调用，不要按帧 |
+
+持有上千标签的容器，一次变更的大部分时间花在重建展开集和 bitset 上。在桌面编辑器中约几百微秒一次，注册表
+规模不出现在这个数字里。真正要避免的形态是「很大的集合放进一个容器并反复变更」；这种情况改用快照，在快照
+上做成员判断。
+
+一万标签规模下一次动态注册要几十毫秒，因为它要重建并重新发布整个注册表。每个生成对象调一次会累积成几秒
+卡顿；加载遮挡期间调一次则不会。
+
+这两条性质由 `GameplayTagsScaleAndSoakTests` 覆盖。断言比较的是两次运行之间的比值与常驻内存，因此换机器
+依然有意义。要跑五分钟稳态检查：
+
+```bash
+CYCLONEGAMES_TAGS_SOAK_SECONDS=300 "$UNITY_EDITOR" -batchmode -nographics \
+  -projectPath "$REPO_ROOT/UnityStarter" -runTests -testPlatform EditMode \
+  -assemblyNames "CycloneGames.GameplayTags.Tests.Performance"
+```
+
+### 热路径指引
+
+- 缓存已请求的 `GameplayTag` value；不在每帧通过字符串请求标签。
+- 小到中等 owned set 使用 `GameplayTagContainer`。
+- 需要 stack ownership 时使用 `GameplayTagCountContainer`。
+- 预先构造 query graph，authoring mutation 后显式 invalidation。
+- Registry rebuild、JSON parsing、validation scan 和 build bake 均视为 cold path。
+
+### 内存所有权
+
+- `GameplayTagManager` 持有已发布不可变 registry snapshot；publication 原子替换完整 snapshot。
+- Mutable container 持有自己的 backing storage。Immutable snapshot 持有复制后的 index。
+- Compiled query data 由所属 `GameplayTagQuery` 持有。Mutation 后调用 `InvalidateCompiledCache()`。
+- Compiled query match 的值栈是单个 `ulong`；每次调用零分配、零栈清零。
+- 单标签 count mutation 使用栈缓冲区；多标签 mutation 使用 container 独占的懒创建临时存储。
+- `Clear()` 保留 explicit/implicit capacity 供 steady-state 复用；在冷路径调用 `ClearAndReleaseMemory()` 可释放全部 backing arrays。
+
+`GameplayTagManager.GetMemorySnapshot()` 以 allocation-free、O(1) 方式返回 registry count、limit、generation、epoch、manifest hash、redirect 与 query limit 的聚合值，并且不暴露 registry storage。
+
+Registry read 捕获不可变 snapshot，不获取 writer lock。
+
+### 平台
+
+Core 为 managed C#，不依赖 UnityEngine、native plugin 或 runtime reflection discovery。Player 通过 Unity Runtime adapter 使用 baked `Resources` binary。WebGL 和 headless/server 使用相同的 managed registry 与 baked-data contract。
+
+## 序列化与 Inspector
+
+Core 容器存储运行时索引；Unity 通过 `CycloneGames.GameplayTags.Unity.Runtime` 中的可序列化桥类型持久化**名字**：
+
+| 桥类型 | 序列化载荷 | 用途 |
+| --- | --- | --- |
+| `SerializableGameplayTag`（struct） | `tagName` | 组件或 SO 上的单个 tag 引用 |
+| `SerializableGameplayTagContainer` | `explicitTagNames` | 常规容器字段 |
+| `SerializableGameplayTagCountContainer` | names + `counts` | 需要随存档保留的堆叠授权 tag 状态 |
+| `SerializableGameplayTagRequirements` | 两个桥 | 必需/禁止 authoring 对 |
+
+每个桥实现 `ISerializationCallbackReceiver` 与 `IReadOnlyGameplayTagContainer`，因此 tag 扩展方法（`HasTag`、`HasAll` 等）可直接在桥上使用。容器桥以 `(RegistryInstanceId, Epoch)` 为键把名字解析到当前注册表——注册表 Reset、Reload、Republish 或热更新重注册后，下一次 tag 读取会自动重解析。序列化的名字是持久真相；运行时容器是按纪元的索引缓存。
+
+用 `LoadPersisted(string[] names)` 把运行时容器的内容赋给桥；通过 `.Container`（或到 `GameplayTagContainer` 的隐式转换）读取活动容器，定义构建代码将其视为只读。
+
+**两种声明车道：**
+
+| 车道 | 声明处 | 编辑器 | Player |
+| --- | --- | --- | --- |
+| 代码声明 | `IGameplayTagCatalog` + 每个引导一次 `RegisterCatalog`（[InitializeOnLoad] 与 [RuntimeInitializeOnLoadMethod]） | 可见，只读 | 启动时注册 |
+| Authoring | `ProjectSettings/GameplayTags` 下的 `FileGameplayTagSource` JSON | Tag Editor 完全可编辑 | 烘焙进 manifest |
+| 数据驱动 | Luban 表行包装为 `GameplayTagDataTableSource<TRow>`（`CycloneGames.GameplayTags.DataTable`），经 `GameplayTagHost.RegisterProjectTagSource` 注册 | 可见（编辑器引导同步加载已发布字节） | DataTable 加载完成后注册；版本变化时重注册并 Reload |
+
+Native tag（`NativeGameplayTag`）是代码车道的常量句柄形式。
+
+**WebGL**：manifest 通过 `StreamingAssets` 异步获取（`GameplayTagWebGLManifestLoader`）；解析 tag 前先以 `ManifestLoaded` 门住玩法逻辑。
+
+## 故障排查
+
+| 现象 | 可能原因 | 解决方法 |
+| --- | --- | --- |
+| `Request` 找不到标签 | 注册表未初始化或标签未注册 | 在请求前调用 `InitializeIfNeeded()`；检查标签是否存在于来源定义中 |
+| Container 操作抛出 index mismatch | Reload 后 RuntimeIndexEpoch 变化 | 捕获新的 container，或在非保留式 reload 后 `Clear()` |
+| 复制 tag container 抛出 `ArgumentException` 并提到 registry epoch | 源 container 建立于非保留式 reload 之前 | 用持久化的名字重建源（`LoadPersisted`） |
+| 原本可用的线程上发生变更却抛出 | Container 仍记录首次变更它的线程 | 池化 container 交给其他线程前调用 `Clear()`，或在该宿主关闭 `ThreadAffinityChecksEnabled` |
+| 修改 query graph 后始终返回 false | Compiled cache 过期 | 修改 expression graph 后调用 `InvalidateCompiledCache()` |
+| Player build 启动时注册表为空 | Build data 缺失或损坏 | 检查隔离生成路径下的 `GameplayTags.bytes` 是否被打入 Player 且 content hash 通过校验 |
+| Player build 因 GameplayTags 需要恢复而拒绝启动 | 上次构建中断或清理证据存在歧义 | 检查 `.buildpipeline/transactions/gameplay-tags/`，再运行 Build workspace recovery 命令或 `BuildTags.Recover(projectRoot)`；不要盲目删除被修改或未知的文件 |
+| JSON 文件编辑未被识别 | 外部编辑导致 conflict | 检查 `ProjectSettings/GameplayTags/` 下是否有 `.tmp`/`.bak` recovery 文件 |
+| Count callback 未触发 | 从 1 递增到 2 不会触发 `NewOrRemoved` | `NewOrRemoved` 仅在 0↔1 转换时触发；所有变化请使用 `AnyCountChange` |
+| 抛异常后容器变成空的 | 源在中途停止响应，集合操作会清空目标而不是保留半应用的结果 | 把 `AddTags`、`RemoveTags`、`Copy`、`AddUnion`、`AddIntersection` 抛出的异常一律视为"目标已被清空"，改用读取期间稳定的源重试 |
+
+## 验证
+
+通过 Unity Test Runner 运行：
+
+```text
+CycloneGames.GameplayTags.Tests.Editor           (EditMode)
+CycloneGames.GameplayTags.DataTable.Tests.Editor (EditMode)
+CycloneGames.GameplayTags.Tests.Performance      (EditMode, warm-up 后)
+```
+
+分别在 Domain Reload 启用和禁用时测试 Play Mode。在每个支持的 target family 上验证 Player build，包括 IL2CPP 和 managed stripping。

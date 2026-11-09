@@ -1,0 +1,266 @@
+using System;
+using CycloneGames.GameplayTags.Core;
+using CycloneGames.Logging;
+
+namespace CycloneGames.GameplayAbilities.Runtime
+{
+    /// <summary>
+    /// AbilityTask that waits for a specific gameplay tag to be added to the owner.
+    /// </summary>
+    public class AbilityTask_WaitGameplayTagAdded : AbilityTask
+    {
+        private static readonly LogChannel Log = GameplayAbilitiesLog.Channel;
+
+        public Action OnTagAdded;
+        public Action OnCancelled;
+
+        private GameplayTag watchedTag;
+        private bool onlyTriggerOnce;
+        private OnTagCountChangedDelegate tagCallback;
+        private AbilitySystemComponent subscriptionOwner;
+        private bool terminalCallbackStarted;
+
+        public override void InitTask(GameplayAbility ability)
+        {
+            base.InitTask(ability);
+            terminalCallbackStarted = false;
+        }
+
+        /// <summary>
+        /// Creates a WaitGameplayTagAdded task.
+        /// </summary>
+        public static AbilityTask_WaitGameplayTagAdded WaitGameplayTagAdded(GameplayAbility ability, GameplayTag tag, bool triggerOnce = true)
+        {
+            var task = ability.NewAbilityTask<AbilityTask_WaitGameplayTagAdded>();
+            task.watchedTag = tag;
+            task.onlyTriggerOnce = triggerOnce;
+            return task;
+        }
+
+        protected override void OnActivate()
+        {
+            subscriptionOwner = Ability?.AbilitySystemComponent;
+            if (subscriptionOwner == null || watchedTag.IsNone)
+            {
+                Log.Warning("WaitGameplayTagAdded: Invalid ability or tag.");
+                EndTask();
+                return;
+            }
+
+            // Subscribe before the immediate notification so no qualifying edge can be lost.
+            // The notification is the final operation in this activation frame because it may end and re-rent this task.
+            tagCallback = HandleTagChanged;
+            subscriptionOwner.RegisterTagEventCallback(watchedTag, GameplayTagEventType.NewOrRemoved, tagCallback);
+
+            if (subscriptionOwner.HasMatchingGameplayTag(watchedTag))
+            {
+                if (onlyTriggerOnce)
+                {
+                    if (!AbilityTaskTerminalCallbackGuard.TryBegin(
+                            this,
+                            ref terminalCallbackStarted,
+                            out ulong leaseGeneration)) return;
+                    try
+                    {
+                        OnTagAdded?.Invoke();
+                    }
+                    finally
+                    {
+                        EndTaskIfCurrentLease(leaseGeneration);
+                    }
+                    return;
+                }
+
+                OnTagAdded?.Invoke();
+            }
+        }
+
+        private void HandleTagChanged(GameplayTag tag, int newCount)
+        {
+            if (!IsActive || IsCancelled) return;
+            if (newCount <= 0) return; // Only fires when tag is added (count goes above 0)
+
+            if (onlyTriggerOnce)
+            {
+                if (!AbilityTaskTerminalCallbackGuard.TryBegin(
+                        this,
+                        ref terminalCallbackStarted,
+                        out ulong leaseGeneration)) return;
+                try
+                {
+                    OnTagAdded?.Invoke();
+                }
+                finally
+                {
+                    EndTaskIfCurrentLease(leaseGeneration);
+                }
+                return;
+            }
+
+            OnTagAdded?.Invoke();
+        }
+
+        public override void CancelTask()
+        {
+            if (!AbilityTaskTerminalCallbackGuard.TryBegin(
+                    this,
+                    ref terminalCallbackStarted,
+                    out ulong leaseGeneration)) return;
+            try
+            {
+                OnCancelled?.Invoke();
+            }
+            finally
+            {
+                if (IsCurrentLease(leaseGeneration))
+                {
+                    base.CancelTask();
+                }
+            }
+        }
+
+        protected override void OnDestroy()
+        {
+            if (subscriptionOwner != null && tagCallback != null)
+            {
+                subscriptionOwner.RemoveTagEventCallback(watchedTag, GameplayTagEventType.NewOrRemoved, tagCallback);
+            }
+
+            OnTagAdded = null;
+            OnCancelled = null;
+            tagCallback = null;
+            subscriptionOwner = null;
+            base.OnDestroy();
+        }
+    }
+
+    /// <summary>
+    /// AbilityTask that waits for a specific gameplay tag to be removed from the owner.
+    /// </summary>
+    public class AbilityTask_WaitGameplayTagRemoved : AbilityTask
+    {
+        private static readonly LogChannel Log = GameplayAbilitiesLog.Channel;
+
+        public Action OnTagRemoved;
+        public Action OnCancelled;
+
+        private GameplayTag watchedTag;
+        private bool onlyTriggerOnce;
+        private OnTagCountChangedDelegate tagCallback;
+        private AbilitySystemComponent subscriptionOwner;
+        private bool terminalCallbackStarted;
+
+        public override void InitTask(GameplayAbility ability)
+        {
+            base.InitTask(ability);
+            terminalCallbackStarted = false;
+        }
+
+        /// <summary>
+        /// Creates a WaitGameplayTagRemoved task.
+        /// </summary>
+        public static AbilityTask_WaitGameplayTagRemoved WaitGameplayTagRemoved(GameplayAbility ability, GameplayTag tag, bool triggerOnce = true)
+        {
+            var task = ability.NewAbilityTask<AbilityTask_WaitGameplayTagRemoved>();
+            task.watchedTag = tag;
+            task.onlyTriggerOnce = triggerOnce;
+            return task;
+        }
+
+        protected override void OnActivate()
+        {
+            subscriptionOwner = Ability?.AbilitySystemComponent;
+            if (subscriptionOwner == null || watchedTag.IsNone)
+            {
+                Log.Warning("WaitGameplayTagRemoved: Invalid ability or tag.");
+                EndTask();
+                return;
+            }
+
+            // Subscribe before the immediate notification so no qualifying edge can be lost.
+            // The notification is the final operation in this activation frame because it may end and re-rent this task.
+            tagCallback = HandleTagChanged;
+            subscriptionOwner.RegisterTagEventCallback(watchedTag, GameplayTagEventType.NewOrRemoved, tagCallback);
+
+            if (!subscriptionOwner.HasMatchingGameplayTag(watchedTag))
+            {
+                if (onlyTriggerOnce)
+                {
+                    if (!AbilityTaskTerminalCallbackGuard.TryBegin(
+                            this,
+                            ref terminalCallbackStarted,
+                            out ulong leaseGeneration)) return;
+                    try
+                    {
+                        OnTagRemoved?.Invoke();
+                    }
+                    finally
+                    {
+                        EndTaskIfCurrentLease(leaseGeneration);
+                    }
+                    return;
+                }
+
+                OnTagRemoved?.Invoke();
+            }
+        }
+
+        private void HandleTagChanged(GameplayTag tag, int newCount)
+        {
+            if (!IsActive || IsCancelled) return;
+            if (newCount > 0) return; // Only fires when tag is removed (count goes to 0)
+
+            if (onlyTriggerOnce)
+            {
+                if (!AbilityTaskTerminalCallbackGuard.TryBegin(
+                        this,
+                        ref terminalCallbackStarted,
+                        out ulong leaseGeneration)) return;
+                try
+                {
+                    OnTagRemoved?.Invoke();
+                }
+                finally
+                {
+                    EndTaskIfCurrentLease(leaseGeneration);
+                }
+                return;
+            }
+
+            OnTagRemoved?.Invoke();
+        }
+
+        public override void CancelTask()
+        {
+            if (!AbilityTaskTerminalCallbackGuard.TryBegin(
+                    this,
+                    ref terminalCallbackStarted,
+                    out ulong leaseGeneration)) return;
+            try
+            {
+                OnCancelled?.Invoke();
+            }
+            finally
+            {
+                if (IsCurrentLease(leaseGeneration))
+                {
+                    base.CancelTask();
+                }
+            }
+        }
+
+        protected override void OnDestroy()
+        {
+            if (subscriptionOwner != null && tagCallback != null)
+            {
+                subscriptionOwner.RemoveTagEventCallback(watchedTag, GameplayTagEventType.NewOrRemoved, tagCallback);
+            }
+
+            OnTagRemoved = null;
+            OnCancelled = null;
+            tagCallback = null;
+            subscriptionOwner = null;
+            base.OnDestroy();
+        }
+    }
+}

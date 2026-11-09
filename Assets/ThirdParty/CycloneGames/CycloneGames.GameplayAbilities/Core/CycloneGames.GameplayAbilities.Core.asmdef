@@ -1,0 +1,18 @@
+{
+    "name": "CycloneGames.GameplayAbilities.Core",
+    "rootNamespace": "CycloneGames.GameplayAbilities.Core",
+    "references": [
+        "CycloneGames.GameplayTags.Core",
+        "CycloneGames.DeterministicMath.Core",
+        "CycloneGames.Hash.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

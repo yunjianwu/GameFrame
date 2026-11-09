@@ -38,7 +38,23 @@
 
 ## Unity Packages
 
-`Packages/manifest.json` 声明 Unity UGUI、Unity Test Framework 和内置引擎模块。Unity Package Manager 下载的包遵循各自的许可证；测试包仅用于开发验证。包缓存不作为本底座源码打包分发。
+`Packages/manifest.json` 声明 Unity UGUI、Unity Test Framework、Newtonsoft JSON 和内置引擎模块。Newtonsoft JSON 供 GameplayTags 编辑器使用。Unity Package Manager 下载的包遵循各自的许可证；测试包仅用于开发验证。包缓存不作为本底座源码打包分发。
+
+## CycloneGames GameplayAbilities 及依赖
+
+- 上游：[MaiKuraki/UnityStarter](https://github.com/MaiKuraki/UnityStarter)，固定提交 `aea5fc8ec0adac197b17417994d6fc945458e21f`。
+- 本工程目录：`Assets/ThirdParty/CycloneGames`。
+- 许可证：MIT，完整文本保留在该目录的 `LICENSE.txt`。
+- 纳入 GameplayAbilities 的 Core、Runtime、Editor，GameplayTags 的 Core、Unity Runtime、Editor 和 Logging 适配，以及 DeterministicMath、Hash、Logging 核心程序集。保留已导入资产的上游 `.meta`。
+- 未纳入上游可选 AssetManagement、DataTable、网络、Samples 和测试程序集。上游各 `package.json` 声明了部分此处未采用的依赖，因此本工程以源码子集而非完整 UPM 包方式维护。
+- 对 GameplayTags 的编辑器初始化增加 `AfterAssembliesLoaded` 钩子，确保 PlayMode 首个场景加载前读取项目标签源；升级上游时需核对这处修改。
+
+## UniTask
+
+- 上游：[Cysharp/UniTask](https://github.com/Cysharp/UniTask)，固定 2.5.0，提交 `56662924960a53695a640af80125f1cfd334d5ee`。
+- 本工程目录：`Assets/ThirdParty/UniTask`。
+- 许可证：MIT，完整文本保留在该目录的 `LICENSE.txt`。
+- 纳入 Runtime 与 Editor 程序集，未纳入 DOTween、Addressables 和 TextMeshPro 等可选外部适配。Runtime asmdef 增加对 `Unity.ugui` 的显式引用，匹配本工程使用的 UGUI 程序集。
 
 ## Starter 示例
 

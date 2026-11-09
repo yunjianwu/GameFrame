@@ -1,0 +1,11 @@
+{
+  "name": "Starter.GameplayAbilities",
+  "rootNamespace": "Starter.GameplayAbilities",
+  "references": [
+    "GameFramework",
+    "UnityGameFramework.Runtime",
+    "CycloneGames.GameplayAbilities.Runtime",
+    "UniTask"
+  ],
+  "autoReferenced": true
+}

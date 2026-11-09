@@ -10,6 +10,8 @@
 
 完整操作、接入位置、原文件映射与维护建议见 [三个 Demo 的接入说明](docs/algorithm-demos.md)。原来的金币示例保留在菜单右上角 `FRAMEWORK SAMPLE`；引导、Spine 和常用 UI 的五页展示也继续保留。
 
+工程也接入了 CycloneGames 技能与标签模块，并提供 GF 资源适配器；使用方法和生命周期见 [技能模块接入说明](docs/gameplay-abilities.md)。RTS Engine 仍需通过拥有该资产的 Unity 账号获取，单位与技能的桥接尚未完成。
+
 ## GitHub 分支与维护
 
 - [main：纯框架底座](https://github.com/yunjianwu/GameFrame/tree/main)，继续作为新游戏的起步工程。
@@ -56,6 +58,8 @@ git clone --branch demos/algorithm-lab https://github.com/yunjianwu/GameFrame.gi
 | `Assets/Extensions/UI`、`Tutorial`、`Spine`、`Effects` | 独立程序集的通用控件、引导、动画和特效 | 按需引用；业务不要写入通用模块 |
 | `Assets/Extensions/Samples` | 五页展示场景、预设、配置和生成骨架 | 从这里复制结构与接线示例 |
 | `Assets/ThirdParty/Spine` | Spine 4.1 本地源码、Editor 与 Shader | 素材导出版本保持匹配，保留许可证 |
+| `Assets/ThirdParty/CycloneGames`、`UniTask` | 技能、标签及异步依赖源码 | 保留许可证；用项目适配层连接 GF 与具体游戏 |
+| `Assets/Starter/GameplayAbilities` | 技能模块的 GF 资源适配 | 在对局组合入口显式创建和释放 |
 | `Assets/Starter/Tests`、`tools` | 核心回归和 Unity 场景集成验证 | 修改生命周期和基础能力时复跑 |
 
 完整 GF 源码保留在工程中，示例只使用其中一部分。Entity、Sound、DataTable、Localization、Network 等模块可以继续接入；保留源码不代表这些模块已经完成项目业务、配置和平台验收。
@@ -71,6 +75,7 @@ git clone --branch demos/algorithm-lab https://github.com/yunjianwu/GameFrame.gi
 - [引导、Spine、粒子与常用 UI 的接入和注意事项](docs/extensions.md)
 - [原脚本迁移映射与改造说明](docs/migration-map.md)
 - [验证记录与适用边界](docs/validation.md)
+- [技能模块、GF 资源适配与 RTS 桥接边界](docs/gameplay-abilities.md)
 - [上游版本和许可证](THIRD_PARTY_NOTICES.md)
 
 这套底座没有绑定原游戏的 Lua、广告、登录、支付、微信/抖音 SDK、加密资源格式和服务器地址。需要这些能力时，在项目层逐个接入。GF 官方源码固定在配套的 `v2021.05.31` 版本，具体提交见 `upstream.json`；这是一套起步底座，后续应维护自己的版本和验证记录。

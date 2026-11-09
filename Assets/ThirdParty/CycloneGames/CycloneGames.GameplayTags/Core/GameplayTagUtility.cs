@@ -1,0 +1,222 @@
+using System;
+using System.Collections.Generic;
+using CycloneGames.Hash.Core;
+
+namespace CycloneGames.GameplayTags.Core
+{
+   public static class GameplayTagUtility
+   {
+      /// <summary>Maximum supported UTF-16 code-unit count for a registered tag name.</summary>
+      public const int MaxTagNameLength = 255;
+
+      /// <summary>Maximum supported number of hierarchy segments in a registered tag name.</summary>
+      public const int MaxHierarchyDepth = 32;
+
+      /// <summary>Maximum number of registered tags, excluding <see cref="GameplayTag.None"/>.</summary>
+      public const int MaxRegisteredTagCount = 65535;
+
+      internal const ulong FnvOffsetBasis64 = Fnv1a64.OffsetBasis;
+
+      public static ulong ComputeStableId(string tagName)
+      {
+         ValidateName(tagName);
+         return ComputeStableIdUnchecked(tagName);
+      }
+
+      internal static ulong ComputeStableIdUnchecked(string tagName)
+      {
+         return StableHash64.ComputeUtf16Ordinal(tagName);
+      }
+
+      internal static ulong CombineStableHash(ulong hash, ulong value)
+      {
+         return StableHash64.CombineUInt64LittleEndian(hash, value);
+      }
+
+      internal static ulong ComputeStableHash64(ReadOnlySpan<byte> data)
+      {
+         return StableHash64.ComputeBytes(data);
+      }
+
+      internal static void WarnNotExplicitlyAddedTagRemoval(GameplayTag gameplayTag)
+      {
+         if (GameplayTagsCoreDiagnostics.TryGetEnabled(
+            GameplayTagsDiagnosticLevel.Warning,
+            GameplayTagsDiagnosticCategories.Root,
+            out IGameplayTagsDiagnostics diagnostics))
+         {
+            GameplayTagsCoreDiagnostics.TryWrite(
+               diagnostics,
+               GameplayTagsDiagnosticLevel.Warning,
+               GameplayTagsDiagnosticCategories.Root,
+               $"Attempted to remove tag {gameplayTag} from tag count container, but it is not explicitly added to the container.");
+         }
+      }
+
+      internal static void WarnNotExplicitTagsRemoval<T>(T tags) where T : IEnumerable<GameplayTag>
+      {
+         foreach (GameplayTag tag in tags)
+         {
+            WarnNotExplicitlyAddedTagRemoval(tag);
+         }
+      }
+
+      /// <summary>
+      /// Return the name of every tag in the hierarchy of the given tag. For
+      /// example, if the tag is "A.B.C", the result will be ["A", "A.B",
+      /// "A.B.C"]
+      /// </summary>
+      public static string[] GetHierarchyNames(string tagName)
+      {
+         ValidateName(tagName);
+
+         int level = GetHierarchyLevelFromName(tagName);
+         string[] names = new string[level];
+         names[--level] = tagName;
+
+         for (int i = tagName.Length - 1; i >= 0; i--)
+         {
+            if (tagName[i] == '.')
+            {
+               string name = tagName[..i];
+               names[--level] = name;
+
+               if (level == -1)
+               {
+                  break;
+               }
+            }
+         }
+
+         return names;
+      }
+
+      public static string GetParentName(string name)
+      {
+         ValidateName(name);
+         return GetParentNameUnchecked(name);
+      }
+
+      internal static string GetParentNameUnchecked(string name)
+      {
+         if (string.IsNullOrEmpty(name))
+            return null;
+
+         int lastDot = name.LastIndexOf('.');
+         if (lastDot == -1)
+            return null;
+
+         return name.Substring(0, lastDot);
+      }
+
+      public static int GetHierarchyLevelFromName(string name)
+      {
+         ValidateName(name);
+
+         int level = 1;
+         for (int i = 0; i < name.Length; i++)
+         {
+            if (name[i] == '.')
+            {
+               level++;
+            }
+         }
+
+         return level;
+      }
+
+      public static string GetLabel(string name)
+      {
+         ValidateName(name);
+
+         int indexOfPoint = name.LastIndexOf('.');
+         if (indexOfPoint == -1)
+         {
+            return name;
+         }
+
+         return name[(indexOfPoint + 1)..];
+      }
+
+      public static bool IsNameValid(string name, out string errorMessage)
+      {
+         static bool IsValidLabelCharacter(char c)
+         {
+            return char.IsLetterOrDigit(c) || c == '_';
+         }
+
+         static bool AcceptLabel(string name, ref int position)
+         {
+            if (position >= name.Length || !IsValidLabelCharacter(name[position]))
+               return false;
+
+            position++;
+            while (position < name.Length && IsValidLabelCharacter(name[position]))
+            {
+               position++;
+            }
+
+            return true;
+         }
+
+         if (string.IsNullOrEmpty(name))
+         {
+            errorMessage = "Tag name cannot be null or empty.";
+            return false;
+         }
+
+         if (name.Length > MaxTagNameLength)
+         {
+            errorMessage = $"Tag name length cannot exceed {MaxTagNameLength} UTF-16 code units.";
+            return false;
+         }
+
+         int position = 0;
+         if (AcceptLabel(name, ref position))
+         {
+            while (position < name.Length && name[position] == '.')
+            {
+               position++;
+               if (!AcceptLabel(name, ref position))
+               {
+                  errorMessage = $"Invalid tag name '{name}'. Unexpected character at position {position}.";
+                  return false;
+               }
+            }
+         }
+
+         if (position == name.Length)
+         {
+            if (GetHierarchyLevelUnchecked(name) > MaxHierarchyDepth)
+            {
+               errorMessage = $"Tag hierarchy cannot exceed {MaxHierarchyDepth} segments.";
+               return false;
+            }
+
+            errorMessage = null;
+            return true;
+         }
+
+         errorMessage = $"Invalid tag name '{name}'. Unexpected character at position {position}.";
+         return false;
+      }
+
+      public static void ValidateName(string name)
+      {
+         if (!IsNameValid(name, out string errorMessage))
+            throw new ArgumentException(errorMessage);
+      }
+
+      private static int GetHierarchyLevelUnchecked(string name)
+      {
+         int level = 1;
+         for (int i = 0; i < name.Length; i++)
+         {
+            if (name[i] == '.')
+               level++;
+         }
+
+         return level;
+      }
+   }
+}
