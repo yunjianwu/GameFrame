@@ -4,6 +4,7 @@
     <Resources>
       <Resource Name="algorithms/scenes/boids" LoadType="0" Packed="True" />
       <Resource Name="algorithms/scenes/flow-field" LoadType="0" Packed="True" />
+      <Resource Name="algorithms/scenes/navmesh" LoadType="0" Packed="True" />
       <Resource Name="algorithms/scenes/quadtree" LoadType="0" Packed="True" />
       <Resource Name="demo/config" LoadType="0" Packed="True" />
       <Resource Name="demo/scenes/menu" LoadType="0" Packed="True" />
@@ -11,6 +12,7 @@
       <Resource Name="demo/ui" LoadType="0" Packed="True" />
     </Resources>
     <Assets>
+      <Asset Guid="0e27c4a0aebb0b74a879e9b089a5783c" ResourceName="algorithms/scenes/navmesh" />
       <Asset Guid="3a979f66f6a081b46a677440c72674d7" ResourceName="algorithms/scenes/flow-field" />
       <Asset Guid="3cfb605e07d458d4d9bfbf1b6f7af02b" ResourceName="demo/ui" />
       <Asset Guid="46f919128d325a24abf31edc925c6a92" ResourceName="demo/ui" />

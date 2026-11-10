@@ -1,6 +1,6 @@
 {
   "name": "AlgorithmDemos.Runtime",
   "rootNamespace": "AlgorithmDemos",
-  "references": [],
+  "references": ["Starter.Navigation"],
   "autoReferenced": true
 }

@@ -2,15 +2,18 @@ using System;
 using System.IO;
 using System.Linq;
 using AlgorithmDemos;
+using AlgorithmDemos.NavMeshExample;
 using Demos.BoidsFlocking;
 using Demos.FlowFieldPathfinding;
 using Demos.QuadTreeBoids;
 using Starter.Game;
 using Starter.Game.Procedures;
 using Starter.Game.UI;
+using Starter.Navigation;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityGameFramework.Editor.ResourceTools;
@@ -41,6 +44,7 @@ namespace Starter.Editor
             var menu = AssetDatabase.LoadAssetAtPath<GameObject>(AssetNames.Menu);
             if (menu == null || new SerializedObject(menu.GetComponent<MenuForm>()).FindProperty("_boids").objectReferenceValue == null)
                 CreateMenu();
+            EnsureNavMeshMenu();
             if (!File.Exists(AssetNames.DemoNavigation)) CreateNavigation();
             foreach (DemoDefinition demo in DemoCatalog.All) CreateScene(demo);
             AssetDatabase.SaveAssets();
@@ -66,7 +70,7 @@ namespace Starter.Editor
             PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "com.yourstudio.gf.demos");
             AssetDatabase.SaveAssets();
             Validate();
-            Debug.Log("ALGORITHM_DEMOS_CONFIGURED: GF launcher, three owned scenes, navigation and resource packages.");
+            Debug.Log("ALGORITHM_DEMOS_CONFIGURED: GF launcher, owned scenes, navigation and resource packages.");
         }
 
         [MenuItem("Demos/2. Validate Algorithm Demos")]
@@ -108,15 +112,17 @@ namespace Starter.Editor
                 if (!found) throw new InvalidOperationException("ProcedureAlgorithmDemo is not registered.");
             }
             finally { if (openedHere) EditorSceneManager.CloseScene(boot, true); }
-            Debug.Log("ALGORITHM_DEMOS_VALIDATED: Three GF scenes, simulations, navigation, resources and procedure registration.");
+            Debug.Log("ALGORITHM_DEMOS_VALIDATED: GF scenes, simulations, navigation, resources and procedure registration.");
         }
 
         private static void CreateScene(DemoDefinition demo)
         {
             if (File.Exists(demo.SceneAsset)) return;
+            Scene previous = SceneManager.GetActiveScene();
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
             try
             {
+                SceneManager.SetActiveScene(scene);
                 var root = new GameObject(demo.Title);
                 SceneManager.MoveGameObjectToScene(root, scene);
                 var registration = root.AddComponent<AlgorithmDemoScene>();
@@ -135,13 +141,93 @@ namespace Starter.Editor
                         simulation = root.AddComponent<QuadTreeDemo>();
                         SetInt(simulation, "boidCount", 1000);
                         break;
+                    case DemoKind.NavMesh:
+                        var navigation = root.AddComponent<NavMeshDemo>();
+                        CreateNavMeshContent(root, navigation);
+                        simulation = navigation;
+                        break;
                     default: throw new ArgumentOutOfRangeException();
                 }
                 SetInt(registration, "_kind", (int)demo.Kind);
                 SetReference(registration, "_simulation", simulation);
                 EditorSceneManager.SaveScene(scene, demo.SceneAsset);
+                if (demo.Kind == DemoKind.NavMesh)
+                {
+                    UnityEditor.AI.NavMeshBuilder.BuildNavMesh();
+                    EditorSceneManager.SaveScene(scene);
+                }
             }
-            finally { EditorSceneManager.CloseScene(scene, true); }
+            finally
+            {
+                if (previous.IsValid() && previous.isLoaded) SceneManager.SetActiveScene(previous);
+                EditorSceneManager.CloseScene(scene, true);
+            }
+        }
+
+        private static void CreateNavMeshContent(GameObject root, NavMeshDemo demo)
+        {
+            GameObject ground = NavigationBox(root.transform, "Ground", new Vector3(0, -0.25f, 0), new Vector3(24, 0.5f, 16));
+            GameObject[] walls =
+            {
+                NavigationBox(root.transform, "Central Wall", new Vector3(0, 1, 0), new Vector3(2, 2, 8)),
+                NavigationBox(root.transform, "North Wall", new Vector3(-4, 0.75f, 5.7f), new Vector3(3, 1.5f, 1)),
+                NavigationBox(root.transform, "South Wall", new Vector3(4, 0.75f, -5.7f), new Vector3(3, 1.5f, 1))
+            };
+            var cameraObject = new GameObject("Navigation Camera", typeof(Camera));
+            cameraObject.transform.SetParent(root.transform, false);
+            cameraObject.transform.position = new Vector3(0, 20, -15);
+            cameraObject.transform.rotation = Quaternion.LookRotation(-cameraObject.transform.position);
+            Camera camera = cameraObject.GetComponent<Camera>();
+            camera.orthographic = true;
+            camera.orthographicSize = 9.5f;
+            camera.depth = 20;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color32(24, 49, 42, 255);
+            camera.farClipPlane = 100;
+
+            var lightObject = new GameObject("Directional Light", typeof(Light));
+            lightObject.transform.SetParent(root.transform, false);
+            lightObject.transform.rotation = Quaternion.Euler(50, -35, 0);
+            Light light = lightObject.GetComponent<Light>();
+            light.type = LightType.Directional;
+            light.intensity = 1.15f;
+
+            var units = new NavMeshUnitMover[3];
+            for (int i = 0; i < units.Length; i++)
+            {
+                var unit = new GameObject("Unit " + (i + 1));
+                unit.transform.SetParent(root.transform, false);
+                unit.transform.localPosition = new Vector3(-8, 0, (i - 1) * 3);
+                units[i] = unit.AddComponent<NavMeshUnitMover>();
+                NavMeshAgent agent = units[i].Agent;
+                agent.radius = 0.4f;
+                agent.height = 1.8f;
+                agent.speed = 4;
+                agent.acceleration = 12;
+                agent.angularSpeed = 360;
+                agent.stoppingDistance = 0.15f;
+                agent.avoidancePriority = 45 + i;
+                GameObject shape = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                shape.name = "Unit Visual";
+                shape.transform.SetParent(unit.transform, false);
+                shape.transform.localPosition = new Vector3(0, 0.9f, 0);
+                shape.transform.localScale = new Vector3(0.8f, 0.9f, 0.8f);
+            }
+            SetReference(demo, "_camera", camera);
+            SetReference(demo, "_ground", ground.GetComponent<Renderer>());
+            SetReferences(demo, "_walls", walls.Select(wall => (Object)wall.GetComponent<Renderer>()).ToArray());
+            SetReferences(demo, "_units", units.Cast<Object>().ToArray());
+        }
+
+        private static GameObject NavigationBox(Transform parent, string name, Vector3 position, Vector3 scale)
+        {
+            GameObject box = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            box.name = name;
+            box.transform.SetParent(parent, false);
+            box.transform.localPosition = position;
+            box.transform.localScale = scale;
+            GameObjectUtility.SetStaticEditorFlags(box, StaticEditorFlags.NavigationStatic);
+            return box;
         }
 
         private static void RegisterProcedure()
@@ -191,23 +277,11 @@ namespace Starter.Editor
                 var content = Rect(root.transform, "Card", Vector2.zero, new Vector2(1280, 720));
                 Text(content, "Eyebrow", "GAME FRAMEWORK  /  INTERACTIVE ALGORITHMS", new Vector2(-290, 296), new Vector2(600, 30), 16, Accent, TextAnchor.MiddleLeft);
                 var title = Text(content, "Title", "ALGORITHM LAB", new Vector2(-225, 230), new Vector2(730, 90), 64, Paper, TextAnchor.MiddleLeft);
-                Text(content, "Description", "Three ideas. One framework. Explore how a crowd finds its way.", new Vector2(-70, 164), new Vector2(1040, 36), 21, Paper, TextAnchor.MiddleLeft);
+                Text(content, "Description", "Four ideas. One framework. Explore movement and spatial algorithms.", new Vector2(-70, 164), new Vector2(1040, 36), 21, Paper, TextAnchor.MiddleLeft);
                 var play = Button(content, "PlayButton", "FRAMEWORK SAMPLE", new Vector2(463, 294), new Vector2(250, 40), 15);
-                Button[] demoButtons = new Button[3];
+                Button[] demoButtons = new Button[DemoCatalog.All.Count];
                 for (int i = 0; i < DemoCatalog.All.Count; i++)
-                {
-                    DemoDefinition demo = DemoCatalog.All[i];
-                    var card = Rect(content, "Demo" + demo.Kind, new Vector2((i - 1) * 388, -55), new Vector2(356, 348));
-                    var image = card.gameObject.AddComponent<Image>();
-                    image.color = Card;
-                    image.raycastTarget = false;
-                    Text(card, "Index", "0" + (i + 1) + "  /  " + (i == 0 ? "EMERGENCE" : i == 1 ? "NAVIGATION" : "SPATIAL INDEX"), new Vector2(0, 133), new Vector2(306, 32), 15, Accent);
-                    Text(card, "Name", demo.Title, new Vector2(0, 72), new Vector2(320, 65), i == 1 ? 39 : 44, Paper);
-                    Text(card, "Topic", i == 0 ? "O(N x N) NEIGHBOR SEARCH" : i == 1 ? "ONE FIELD / MANY AGENTS" : "QUERY NEARBY / SKIP THE REST", new Vector2(0, 18), new Vector2(320, 35), 13, Accent);
-                    Text(card, "Description", demo.Description + "\n\n" + (i == 0 ? "Steer a flock with your mouse." : i == 1 ? "Paint walls. Watch the crowd reroute." : "Split space and compare the cost."), new Vector2(0, -48), new Vector2(306, 90), 17, Paper);
-                    string buttonName = i == 0 ? "BoidsButton" : i == 1 ? "FlowFieldButton" : "QuadTreeButton";
-                    demoButtons[i] = Button(card, buttonName, "OPEN DEMO  >", new Vector2(0, -127), new Vector2(300, 50), 18);
-                }
+                    demoButtons[i] = CreateDemoCard(content, DemoCatalog.All[i], i);
                 var balance = Text(content, "CoinsValue", "Saved coins: 100", new Vector2(-415, -292), new Vector2(340, 30), 15, Accent, TextAnchor.MiddleLeft);
                 Text(content, "Footer", "GF PROCEDURE  /  OWNED SCENES  /  POOLED UI  /  C# SOURCE", new Vector2(180, -292), new Vector2(810, 30), 14, Paper, TextAnchor.MiddleRight);
                 SetReference(logic, "_title", title);
@@ -216,9 +290,58 @@ namespace Starter.Editor
                 SetReference(logic, "_boids", demoButtons[0]);
                 SetReference(logic, "_flowField", demoButtons[1]);
                 SetReference(logic, "_quadTree", demoButtons[2]);
+                SetReference(logic, "_navMesh", demoButtons[3]);
                 PrefabUtility.SaveAsPrefabAsset(root, AssetNames.Menu);
             }
             finally { Object.DestroyImmediate(root); }
+        }
+
+        private static void EnsureNavMeshMenu()
+        {
+            GameObject root = PrefabUtility.LoadPrefabContents(AssetNames.Menu);
+            try
+            {
+                var logic = root.GetComponent<MenuForm>();
+                var field = new SerializedObject(logic).FindProperty("_navMesh");
+                if (field.objectReferenceValue != null) return;
+                Transform content = root.transform.Find("Card");
+                if (content == null) throw new InvalidOperationException("The demo menu has no Card root.");
+                for (int i = 0; i < 3; i++)
+                {
+                    var card = content.Find("Demo" + DemoCatalog.All[i].Kind) as RectTransform;
+                    if (card == null) throw new InvalidOperationException("The demo menu is missing " + DemoCatalog.All[i].Kind);
+                    PlaceDemoCard(card, i);
+                }
+                Text description = content.Find("Description")?.GetComponent<Text>();
+                if (description != null) description.text = "Four ideas. One framework. Explore movement and spatial algorithms.";
+                Button button = CreateDemoCard(content, DemoCatalog.Get(DemoKind.NavMesh), 3);
+                SetReference(logic, "_navMesh", button);
+                PrefabUtility.SaveAsPrefabAsset(root, AssetNames.Menu);
+            }
+            finally { PrefabUtility.UnloadPrefabContents(root); }
+        }
+
+        private static Button CreateDemoCard(Transform parent, DemoDefinition demo, int index)
+        {
+            var card = Rect(parent, "Demo" + demo.Kind, Vector2.zero, new Vector2(356, 348));
+            PlaceDemoCard(card, index);
+            var image = card.gameObject.AddComponent<Image>();
+            image.color = Card;
+            image.raycastTarget = false;
+            string[] categories = { "EMERGENCE", "NAVIGATION", "SPATIAL INDEX", "UNITY AI" };
+            string[] topics = { "O(N x N) NEIGHBOR SEARCH", "ONE FIELD / MANY AGENTS", "QUERY NEARBY / SKIP THE REST", "BAKED MESH / RTS UNITS" };
+            string[] details = { "Steer a flock with your mouse.", "Paint walls. Watch the crowd reroute.", "Split space and compare the cost.", "Select units and send move orders." };
+            Text(card, "Index", "0" + (index + 1) + "  /  " + categories[index], new Vector2(0, 133), new Vector2(306, 32), 15, Accent);
+            Text(card, "Name", demo.Title, new Vector2(0, 72), new Vector2(320, 65), index == 1 ? 39 : 44, Paper);
+            Text(card, "Topic", topics[index], new Vector2(0, 18), new Vector2(320, 35), 13, Accent);
+            Text(card, "Description", demo.Description + "\n\n" + details[index], new Vector2(0, -48), new Vector2(306, 90), 17, Paper);
+            return Button(card, demo.Kind + "Button", "OPEN DEMO  >", new Vector2(0, -127), new Vector2(300, 50), 18);
+        }
+
+        private static void PlaceDemoCard(RectTransform card, int index)
+        {
+            card.anchoredPosition = new Vector2((index - 1.5f) * 294, -55);
+            card.localScale = Vector3.one * 0.76f;
         }
 
         private static void CreateNavigation()
@@ -312,6 +435,15 @@ namespace Starter.Editor
         {
             var serialized = new SerializedObject(target);
             serialized.FindProperty(property).objectReferenceValue = value;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetReferences(Object target, string property, Object[] values)
+        {
+            var serialized = new SerializedObject(target);
+            SerializedProperty array = serialized.FindProperty(property);
+            array.arraySize = values.Length;
+            for (int i = 0; i < values.Length; i++) array.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 

@@ -108,7 +108,7 @@ namespace Starter.Editor
             string package = Path.Combine(builder.OutputPackagePath, platform.ToString());
             if (!builder.BuildResources() || !completed || !File.Exists(Path.Combine(package, "GameFrameworkVersion.dat")))
                 throw new InvalidOperationException("Package build failed. Inspect the GF build report under " + resources);
-            foreach (string name in new[] { "demo/config.dat", "demo/ui.dat", "demo/scenes/menu.dat", "demo/scenes/play.dat", "algorithms/scenes/boids.dat", "algorithms/scenes/flow-field.dat", "algorithms/scenes/quadtree.dat" })
+            foreach (string name in new[] { "demo/config.dat", "demo/ui.dat", "demo/scenes/menu.dat", "demo/scenes/play.dat", "algorithms/scenes/boids.dat", "algorithms/scenes/flow-field.dat", "algorithms/scenes/quadtree.dat", "algorithms/scenes/navmesh.dat" })
                 if (!File.Exists(Path.Combine(package, name))) throw new IOException("Missing package resource: " + name);
             return package;
         }

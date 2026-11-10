@@ -25,6 +25,7 @@ namespace Starter.Game.UI
         [SerializeField] private Button _boids;
         [SerializeField] private Button _flowField;
         [SerializeField] private Button _quadTree;
+        [SerializeField] private Button _navMesh;
         private Action _onPlay;
         private Action<DemoKind> _onDemo;
 
@@ -35,6 +36,7 @@ namespace Starter.Game.UI
             _boids.onClick.AddListener(() => _onDemo?.Invoke(DemoKind.Boids));
             _flowField.onClick.AddListener(() => _onDemo?.Invoke(DemoKind.FlowField));
             _quadTree.onClick.AddListener(() => _onDemo?.Invoke(DemoKind.QuadTree));
+            _navMesh.onClick.AddListener(() => _onDemo?.Invoke(DemoKind.NavMesh));
         }
 
         protected override void OnOpen(object userData)

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace AlgorithmDemos
 {
-    public enum DemoKind { Boids, FlowField, QuadTree }
+    public enum DemoKind { Boids, FlowField, QuadTree, NavMesh }
 
     public sealed class DemoDefinition
     {
@@ -32,7 +32,9 @@ namespace AlgorithmDemos
             new DemoDefinition(DemoKind.FlowField, "FLOW FIELD", "Cost / integration / direction / crowd",
                 "Assets/AlgorithmDemos/Scenes/FlowField.unity", "algorithms/scenes/flow-field"),
             new DemoDefinition(DemoKind.QuadTree, "QUADTREE", "Spatial queries / flocking comparison",
-                "Assets/AlgorithmDemos/Scenes/QuadTree.unity", "algorithms/scenes/quadtree")
+                "Assets/AlgorithmDemos/Scenes/QuadTree.unity", "algorithms/scenes/quadtree"),
+            new DemoDefinition(DemoKind.NavMesh, "NAVMESH", "Unity navigation / unit movement",
+                "Assets/AlgorithmDemos/Scenes/NavMesh.unity", "algorithms/scenes/navmesh")
         };
 
         public static IReadOnlyList<DemoDefinition> All { get; } = Array.AsReadOnly(Items);

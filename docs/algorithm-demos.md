@@ -1,4 +1,4 @@
-# 三个算法 Demo 与 GF 的整合
+# 算法与 Unity NavMesh Demo 和 GF 的整合
 
 新工程：`D:\WorkSpace\UnityGFDemos`。框架来源为 `D:\WorkSpace\UnityGFStarter`；算法来源为 `D:\WorkSpace\wechat-article-demos\demos-unity` 下的三个项目。源工程保持独立，本工程维护自己的接入与适配代码。
 
@@ -6,7 +6,7 @@
 
 使用 Unity 2022.3.62f2 打开工程，进入 `Assets/Game/Scenes/Boot.unity` 后按 Play。安装目录名是 `2022.3.62f2`，本机编辑器实际报告 `2022.3.62f2c1`。渲染管线为 Built-in，默认使用旧 Input Manager，不需要新 Input System 包。
 
-菜单三个卡片分别进入 Boids、Flow Field、QuadTree。顶部 `< HUB` 与 `Esc` 返回菜单；`RESET` 卸载并重载当前 Demo 场景，恢复场景初始参数。普通调参只影响本次运行，没有额外存档。右上角 `FRAMEWORK SAMPLE` 是原框架金币示例，其存档仍按原框架规则处理。
+菜单四个卡片分别进入 Boids、Flow Field、QuadTree 和 NavMesh。顶部 `< HUB` 与 `Esc` 返回菜单；`RESET` 卸载并重载当前 Demo 场景，恢复场景初始参数。普通调参只影响本次运行，没有额外存档。右上角 `FRAMEWORK SAMPLE` 是原框架金币示例，其存档仍按原框架规则处理。
 
 ### Boids 鸟群
 
@@ -30,6 +30,14 @@
 - 鸟群模式中左键吸引、右键驱散，默认 1,000 只；数量上限不是性能保证。
 - 本工程增加最大深度和极小节点保护，重复位置的点保留在终止节点，避免持续分裂导致栈溢出。
 
+### Unity NavMesh 单位寻路
+
+- 左键选择单位，按住 Shift 再左键切换多选；右键设置移动目标，按 S 停止已选单位。
+- 选中单位显示为黄色，第一名选中单位的当前路径显示为线段；墙体已经烘焙进场景的导航网格。
+- 多选移动使用简单的间隔目标点，便于观察局部避让；它不是完整的 RTS 编队、拥堵调度或动态建筑寻路。
+- 点击“开始 400 单位移动测试”，可切换 NavMesh / 流场、右键改变整队目标、比较四种路线显示，并动态绘制障碍物、沼泽与道路。编辑时保持移动，仅对受影响路线重寻路。
+- 可复用的 `NavMeshUnitMover`、目标校验、接入代码和当前限制见 [RTS NavMesh 接入说明](rts-navmesh.md)。
+
 三套算法更新目前都在 Unity 主线程的 `Update` 中执行。动态 Mesh 合并减少绘制提交，但没有使用 Jobs、Burst、计算着色器或工作线程。GF 启动、资源和场景异步加载沿用底座的生命周期；不要把异步加载等同于算法已经多线程化。
 
 ## GF 接入方式
@@ -41,12 +49,12 @@ Boot
   -> Launch -> CheckVersion -> UpdateResource -> Preload
   -> EnterGame -> ChangeScene -> Menu
 
-Menu -> ChangeScene -> Boids / FlowField / QuadTree -> ProcedureAlgorithmDemo
+Menu -> ChangeScene -> Boids / FlowField / QuadTree / NavMesh -> ProcedureAlgorithmDemo
 Demo -> ChangeScene -> Menu
 Demo -> ChangeScene (reload) -> 原 Demo
 ```
 
-Boot 的框架组件保持常驻。三个 Demo 分别是 GF 管理的业务场景，切换时先卸载旧业务场景，再加载目标；不是同时创建三套常驻模拟。重置通过 `ProcedureChangeScene` 的 reload 请求完成，会销毁旧模拟、相机和绘制资源。
+Boot 的框架组件保持常驻。四个 Demo 分别是 GF 管理的业务场景，切换时先卸载旧业务场景，再加载目标；不是同时创建四套常驻模拟。重置通过 `ProcedureChangeScene` 的 reload 请求完成，会销毁旧模拟、相机和绘制资源。
 
 `MenuForm` 和 `DemoNavigationForm` 都由 GF UI 管理。按钮只在 `OnInit` 绑定一次，每次 `OnOpen` 换用当前流程上下文，`OnClose` 清空。流程回调校验 Generation，避免 UI 池复用或迟到回调再次操作旧流程。
 
@@ -56,13 +64,15 @@ Boot 的框架组件保持常驻。三个 Demo 分别是 GF 管理的业务场�
 
 | 文件或目录 | 作用 |
 |---|---|
-| `Assets/AlgorithmDemos/Runtime/DemoCatalog.cs` | 三个入口、标题、场景路径和资源名 |
+| `Assets/AlgorithmDemos/Runtime/DemoCatalog.cs` | 四个入口、标题、场景路径和资源名 |
 | `Assets/AlgorithmDemos/Runtime/AlgorithmDemoScene.cs` | 当前业务场景及模拟组件的注册，销毁时释放静态引用 |
 | `Assets/AlgorithmDemos/Runtime/DemoInputGate.cs` | 导航栏输入拦截 |
 | `Assets/AlgorithmDemos/Runtime/DemoPresentation.cs` | 三个 IMGUI 面板的桌面字体选择 |
 | `Assets/AlgorithmDemos/Runtime/BoidsFlocking` | 鸟群算法、画面与输入 |
 | `Assets/AlgorithmDemos/Runtime/FlowFieldPathfinding` | 代价/积分/向量场、A* 与人群模拟 |
 | `Assets/AlgorithmDemos/Runtime/QuadTreeBoids` | 四叉树查询、实验室与鸟群优化 |
+| `Assets/AlgorithmDemos/Runtime/NavMesh` | Unity NavMesh 演示的选择、输入和路径显示 |
+| `Assets/Starter/Navigation/Runtime` | 可被游戏业务复用的 NavMesh 单位移动组件 |
 | `Assets/Game/Runtime/Procedures/ProcedureMenu.cs` | 菜单选择，发起 GF 场景切换 |
 | `Assets/Game/Runtime/Procedures/ProcedureAlgorithmDemo.cs` | Demo 流程、导航、返回与重置 |
 | `Assets/Game/Runtime/UI/DemoNavigationForm.cs` | 池化导航界面与输入区域的生命周期 |
@@ -79,9 +89,10 @@ Boot 的框架组件保持常驻。三个 Demo 分别是 GF 管理的业务场�
 | `algorithms/scenes/boids` | `Assets/AlgorithmDemos/Scenes/Boids.unity` |
 | `algorithms/scenes/flow-field` | `Assets/AlgorithmDemos/Scenes/FlowField.unity` |
 | `algorithms/scenes/quadtree` | `Assets/AlgorithmDemos/Scenes/QuadTree.unity` |
+| `algorithms/scenes/navmesh` | `Assets/AlgorithmDemos/Scenes/NavMesh.unity` 及其烘焙导航数据依赖 |
 | `demo/ui` | `MenuForm.prefab`、`PlayForm.prefab`、`DemoNavigationForm.prefab` |
 
-编辑器以 Editor Resource Mode 直接加载资产。Windows 包内仅直接内置 Boot 和扩展示例展示场景；菜单、原金币场景和三个算法场景通过真实 GF Package 加载。新增场景必须同时更新目录、GF 资源集合和编辑器场景列表。
+编辑器以 Editor Resource Mode 直接加载资产。Windows 包内仅直接内置 Boot 和扩展示例展示场景；菜单、原金币场景和四个 Demo 场景通过真实 GF Package 加载。新增场景必须同时更新目录、GF 资源集合和编辑器场景列表。
 
 ## 相对于原 Demo 的改动
 
@@ -121,7 +132,7 @@ Windows 截图验证仅在 Development Build 中通过 `-algorithmSmokeTest` 启
 
 ## 后续开发建议
 
-1. 新增第四个 Demo 时，先增加独立算法/控制器和场景，再更新 `DemoKind`、`DemoCatalog`、菜单接线、场景生成器及资源清单；用统一流程验证进入、重置、返回和再次进入。
+1. 新增 Demo 时，先增加独立算法/控制器和场景，再更新 `DemoKind`、`DemoCatalog`、菜单接线、场景生成器及资源清单；用统一流程验证进入、重置、返回和再次进入。
 2. 教学面板目前保留原 IMGUI，便于对照文章代码。做成产品工具时可迁到 GF UI/现有通用控件，增加滚动布局、移动端操作和安全区；不要把教学面板的每帧布局作为正式游戏 UI 的默认方案。
 3. 本机通过系统动态字体显示中文，跨平台发布应引入有授权的字体资产。没有携带 Windows 字体文件，其他机器缺字体时需自行配置。
 4. 性能优化先用 Profiler 定位邻居搜索、流场重建、Mesh 构建和 GC，再决定空间索引或 Jobs/Burst。面板 FPS、文章 benchmark 和 Null 图形测试不代表目标设备帧率。
